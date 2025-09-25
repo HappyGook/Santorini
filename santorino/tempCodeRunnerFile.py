@@ -1,4 +1,3 @@
-from santorini.models import Cell, Worker
 from santorini.board import Board
 
 b = Board()

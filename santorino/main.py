@@ -1,6 +1,5 @@
-from santorini.models import Cell, Worker
 from santorini.board import Board
-from santorini.rules import can_move, can_build, is_win_after_move, legal_moves, legal_builds
+from game.rules import can_move, is_win_after_move, legal_moves, legal_builds
 
 if __name__ == "__main__":
     b = Board()
