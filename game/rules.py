@@ -1,6 +1,6 @@
 from typing import List, Tuple
-from models import Coord, MAX_LEVEL, DOME_LEVEL
-from board import Board
+from game.models import Coord, MAX_LEVEL, DOME_LEVEL
+from game.board import Board
 
 def can_move(board: Board, src: Coord, dst: Coord) -> bool:
     """A move is legal iff:

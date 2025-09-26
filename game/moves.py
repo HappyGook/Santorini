@@ -1,6 +1,6 @@
 from typing import Tuple
-from board import Board
-from models import Worker
+from game.board import Board
+from game.models import Worker
 
 Coord = Tuple[int, int]
 

@@ -6,6 +6,10 @@ def coords_to_notation(pos):
     row, col = pos
     return f"{chr(97 + col)}{row+1}"   # 'a'..'e' and 1..5
 
+def notation_to_coords(pos_str):
+    col_str, row_str = pos_str
+    return  ord(col_str) - ord('a'), int(row_str) - 1
+
 class GameNotation:
     def __init__(self):
         self.moves = []
