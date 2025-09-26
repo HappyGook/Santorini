@@ -1,4 +1,4 @@
-from santorini.board import Board
+from game.board import Board
 
 b = Board()
 

@@ -1,5 +1,5 @@
 from typing import Dict, List
-from models import Cell, Coord, BOARD_SIZE, DOME_LEVEL, Worker
+from models import Cell, Coord, BOARD_SIZE, Worker
 
 class Board:
     def __init__(self, workers: List[Worker]) -> None:

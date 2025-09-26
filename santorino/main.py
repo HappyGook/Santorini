@@ -1,4 +1,4 @@
-from santorini.board import Board
+from game.board import Board
 from game.rules import can_move, is_win_after_move, legal_moves, legal_builds
 
 if __name__ == "__main__":
