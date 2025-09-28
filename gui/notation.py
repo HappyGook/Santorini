@@ -1,14 +1,20 @@
-from typing import Optional
+from typing import Optional, Tuple
 from datetime import datetime
 from game.models import Worker, Coord
 
-def coords_to_notation(pos):
-    row, col = pos
-    return f"{chr(97 + col)}{row+1}"   # 'a'..'e' and 1..5
+def coords_to_notation(rc: Tuple[int, int]) -> str:
+    row, col = rc
+    return chr(ord('a') + col) + str(row + 1)
 
-def notation_to_coords(pos_str):
-    col_str, row_str = pos_str
-    return  ord(col_str) - ord('a'), int(row_str) - 1
+
+def notation_to_coords(s: str) -> Tuple[int, int]:
+    s = s.strip().lower()
+    if len(s) < 2 or not s[0].isalpha() or not s[1:].isdigit():
+        raise ValueError(f"Bad coordinate notation: {s}")
+
+    col = ord(s[0]) - ord('a')   # letters to col a->0 b->1 c->2 d->3 e->4
+    row = int(s[1:]) - 1         # num map to rows
+    return (row, col)            # fix cos u return (col, row last time)
 
 class GameNotation:
     def __init__(self):
