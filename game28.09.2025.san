@@ -1,0 +1,5 @@
+setup P1 P1A a3
+setup P1 P1B e1
+setup P2 P2A a2
+setup P2 P2B b1
+b3-b3,c2

@@ -1,12 +1,12 @@
-from typing import Dict, List
+from typing import Dict, List, Optional
 from game.models import Cell, Coord, BOARD_SIZE, Worker
 
 class Board:
-    def __init__(self, workers: List[Worker]) -> None:
+    def __init__(self, workers: Optional[ List[Worker]] = None) -> None:
         self.grid: Dict[Coord, Cell] = {
             (r, c): Cell() for r in range(BOARD_SIZE) for c in range(BOARD_SIZE)
         }
-        self.workers: List[Worker] = workers
+        self.workers: List[Worker] = workers or []
         self.current_player: str = "P1"
 
     def in_bounds(self, pos: Coord) -> bool:

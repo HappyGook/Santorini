@@ -1,8 +1,49 @@
+
+from __future__ import annotations
+from typing import Tuple, List, Optional
 from game.board import Board
-from game.models import Worker
+from game.models import Worker, Cell, BOARD_SIZE
 from game.moves import move_worker, build_block
 from game.rules import legal_moves, legal_builds, player_has_moves
-from notation import GameNotation, notation_to_coords
+from gui.notation import GameNotation, notation_to_coords, coords_to_notation
+
+
+
+
+Coord = Tuple[int, int]
+
+def render_board(b: Board) -> None: #print board and height and worker id
+
+    letters = [chr(ord('a') + c) for c in range(BOARD_SIZE)]
+    print("\n   " + "  ".join(letters))
+    for r in range(BOARD_SIZE):
+        row_bits = []
+        for c in range(BOARD_SIZE):
+            cell = b.grid[(r, c)]
+            tag = (cell.worker_id or " ").ljust(2)
+            row_bits.append(f"{cell.height}{tag}")
+        print(f"{r+1} " + " ".join(row_bits))
+    print()
+   
+def player_workers(b: Board, player:str) -> List[Worker]:
+
+    return [w for w in b.workers if w.owner == player] #filter workers by player
+
+def any_moves_for(b: Board, player: str) -> bool:
+    return any(legal_moves(b, w.pos) for w in player_workers(b, player))  #check if  worker has any legal moves noch
+
+
+def input_coord(prompt: str) -> Coord:
+    s = input(prompt).strip()   #parse a1 to row,col
+    return notation_to_coords(s)
+
+def input_worker_id(prompt: str, choices: List[str]) -> str:    #pick worker id from list
+     
+    while True:
+        s = input(prompt).strip()
+        if s in choices:
+            return s
+        print(f"Invalid choice, must be one of {choices}")
 
 def setup_workers(board: Board, notation: GameNotation):
     """Prompt both players to place their workers."""
@@ -97,20 +138,3 @@ def play_turn(board: Board, notation: GameNotation):
 
     return False, w, dst
 
-def main():
-    board = Board([])
-    notation = GameNotation()
-
-    print("Welcome to Santorini CLI!")
-    setup_workers(board, notation)
-
-    game_over = False
-    while not game_over:
-        game_over, worker, dst = play_turn(board, notation)
-
-    # Save game
-    notation.save()
-    print("Game saved.")
-
-if __name__ == "__main__":
-    main()
