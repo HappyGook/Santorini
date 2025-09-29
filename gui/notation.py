@@ -22,13 +22,17 @@ class GameNotation:
 
     def record_setup(self, worker: Worker):
         pos_str = coords_to_notation(worker.pos)
-        self.moves.append(f"setup {worker.owner} {worker.id} {pos_str}")
+        self.moves.append(pos_str)
 
-    def record_turn(self, worker: Worker, move_to: Coord, build_at: Coord):
-        worker_str = coords_to_notation(worker.pos)
+    def record_turn(self, old_pos: Coord, move_to: Coord, build_at: Optional[Coord] = None):
+        old_str = coords_to_notation(old_pos)
         move_str = coords_to_notation(move_to)
-        build_str = coords_to_notation(build_at)
-        self.moves.append(f"{worker_str}-{move_str},{build_str}")
+        if build_at is not None:
+            build_str = coords_to_notation(build_at)
+            self.moves.append(f"{old_str}-{move_str},{build_str}")
+        else:
+            # For winning moves where no build occurs
+            self.moves.append(f"{old_str}-{move_str}")
 
     def get_notation(self):
         return "\n".join(self.moves)

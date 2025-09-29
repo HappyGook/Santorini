@@ -80,12 +80,11 @@ def play_turn(board: Board, notation: GameNotation):
         for i, w in enumerate(workers):
             moves = legal_moves(board, w.pos)
             print(f"{i+1}: {w.id} at {w.pos} can move to {[m for m in moves]}")
-        choice = input("Select worker number: ")
-        try:
-            w = workers[int(choice)-1]
-        except:
-            print("Invalid worker choice.")
+        choice = input("Select worker (A/B): ").strip().upper()
+        if choice not in ["A", "B"]:
+            print("Invalid worker choice. Must be A or B.")
             continue
+        w = workers[ord(choice) - ord('A')]
 
         moves = legal_moves(board, w.pos)
         if not moves:
@@ -103,6 +102,7 @@ def play_turn(board: Board, notation: GameNotation):
             print("Illegal move, try again.")
             continue
 
+        old=w.pos
         won = move_worker(board, w, dst)
         if won:
             print(f"{player} wins by moving {w.id} to {dst}!")
@@ -128,7 +128,7 @@ def play_turn(board: Board, notation: GameNotation):
             continue
 
         build_block(board, w, bpos)
-        notation.record_turn(w, dst, bpos)
+        notation.record_turn(old, dst, bpos)
         break
 
     if not player_has_moves(board, board.current_player):
