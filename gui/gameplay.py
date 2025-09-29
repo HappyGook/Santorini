@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 from typing import Tuple, List, Optional
 from game.board import Board
