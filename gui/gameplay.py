@@ -79,7 +79,8 @@ def play_turn(board: Board, notation: GameNotation):
         print(f"\n{player}, choose a worker to move.")
         for i, w in enumerate(workers):
             moves = legal_moves(board, w.pos)
-            print(f"{i+1}: {w.id} at {w.pos} can move to {[m for m in moves]}")
+            moves_notation = [coords_to_notation(m) for m in moves]
+            print(f"{i+1}: {w.id} at {coords_to_notation(w.pos)} can move to {moves_notation}")
         choice = input("Select worker (A/B): ").strip().upper()
         if choice not in ["A", "B"]:
             print("Invalid worker choice. Must be A or B.")
@@ -136,4 +137,3 @@ def play_turn(board: Board, notation: GameNotation):
         return True, w, dst
 
     return False, w, dst
-
