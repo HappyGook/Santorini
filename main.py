@@ -1,3 +1,4 @@
+from ai.agent import Agent
 from game.board import Board
 from gui.notation import GameNotation
 from gui.gameplay import setup_workers, play_turn, render_board
@@ -7,6 +8,13 @@ def main():
     print("Welcome to Santorini CLI!")
     board = Board()
     notation = GameNotation()
+
+    mode = input("Choose mode: (1) Human vs Human, (2) Human vs AI: ").strip()
+
+    ai_agent = None
+    if mode == "2":
+        ai_agent = Agent("P2")
+
 
     # Setup phase
     setup_workers(board, notation)
