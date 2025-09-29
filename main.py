@@ -9,11 +9,14 @@ def main():
     board = Board()
     notation = GameNotation()
 
-    mode = input("Choose mode: (1) Human vs Human, (2) Human vs AI: ").strip()
+    mode = input("Choose mode: (1) Human vs Human, (2) Human vs AI, (3) AI vs AI: ").strip()
 
-    ai_agent = None
+    agents = {}
     if mode == "2":
-        ai_agent = Agent("P2")
+        agents["P2"] = Agent("P2")
+    elif mode == "3":
+        agents["P1"] = Agent("P1")
+        agents["P2"] = Agent("P2")
 
 
     # Setup phase
@@ -26,7 +29,7 @@ def main():
 
     # Gameplay loop
     while True:
-        game_over, worker, dst = play_turn(board, notation)
+        game_over, worker, dst = play_turn(board, notation, ai_agents=agents)
         render_board(board)
 
         if game_over:

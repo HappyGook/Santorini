@@ -1,11 +1,11 @@
 from __future__ import annotations
-from typing import Tuple, List, Optional
+from typing import Tuple, List, Optional, Dict
 from game.board import Board
 from game.models import Worker, Cell, BOARD_SIZE
 from game.moves import move_worker, build_block
 from game.rules import legal_moves, legal_builds, player_has_moves
 from gui.notation import GameNotation, notation_to_coords, coords_to_notation
-
+from ai.agent import Agent
 
 
 
@@ -69,18 +69,47 @@ def setup_workers(board: Board, notation: GameNotation):
                     print("Invalid input:", e)
     return workers
 
-def play_turn(board: Board, notation: GameNotation):
+def play_turn(board: Board, notation: GameNotation, ai_agents: Optional[Dict[str, Agent]] = None):
     """Run one turn for the current player."""
     player = board.current_player
     workers = [w for w in board.workers if w.owner == player]
 
-    # Phase 1: move
+    # === AI PATH ===
+    if ai_agents and player in ai_agents:
+        agent = ai_agents[player]
+
+        # Move phase
+        w, dst = agent.make_move(board)
+        old = w.pos
+        won = move_worker(board, w, dst)
+        if won:
+            print(f"{player} wins by moving {w.id} to {coords_to_notation(dst)}!")
+            notation.record_turn(old, dst, dst)  # record move (build dummy same as move)
+            return True, w, dst
+
+        # Build phase
+        bpos = agent.build(board)
+        build_block(board, w, bpos)
+        notation.record_turn(old, dst, bpos)
+
+        # Check if opponent has moves
+        if not player_has_moves(board, board.current_player):
+            print(f"{board.current_player} has no moves left! They lose.")
+            return True, w, dst
+
+        # Switch player
+        board.current_player = "P2" if player == "P1" else "P1"
+        return False, w, dst
+
+    # === HUMAN PATH ===
+    # Move phase
     while True:
         print(f"\n{player}, choose a worker to move.")
         for i, w in enumerate(workers):
             moves = legal_moves(board, w.pos)
             moves_notation = [coords_to_notation(m) for m in moves]
             print(f"{i+1}: {w.id} at {coords_to_notation(w.pos)} can move to {moves_notation}")
+
         choice = input("Select worker (A/B): ").strip().upper()
         if choice not in ["A", "B"]:
             print("Invalid worker choice. Must be A or B.")
@@ -103,14 +132,15 @@ def play_turn(board: Board, notation: GameNotation):
             print("Illegal move, try again.")
             continue
 
-        old=w.pos
+        old = w.pos
         won = move_worker(board, w, dst)
         if won:
-            print(f"{player} wins by moving {w.id} to {dst}!")
+            print(f"{player} wins by moving {w.id} to {coords_to_notation(dst)}!")
+            notation.record_turn(old, dst, dst)  # record move (build dummy)
             return True, w, dst
         break
 
-    # Phase 2: build
+    # Build phase
     while True:
         builds = legal_builds(board, w.pos)
         if not builds:
@@ -132,8 +162,11 @@ def play_turn(board: Board, notation: GameNotation):
         notation.record_turn(old, dst, bpos)
         break
 
+    # Check if opponent has moves
     if not player_has_moves(board, board.current_player):
         print(f"{board.current_player} has no moves left! They lose.")
         return True, w, dst
 
+    # Switch player
+    board.current_player = "P2" if player == "P1" else "P1"
     return False, w, dst
