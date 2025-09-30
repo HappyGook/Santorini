@@ -11,6 +11,10 @@ from game.moves import move_worker, build_block
 CELL = 80 #pixels per cell
 MARGIN = 20 #padding
 
+COLOR_MOVE = "lightblue"
+COLOR_BUILD = "Orange"
+COLOR_SELECTED = "lightgreen"
+
 def place(board, worker_id: str, owner: str, pos: tuple[int, int]) -> None: # create and place worker on board
   
     w = Worker(id=worker_id, owner=owner, pos=pos)
@@ -39,6 +43,7 @@ class SantoriniTk(tk.Tk):
         self.legal = [] # hold legal target cells 
 
         self.canvas.bind("<Button-1>", self.on_click) #left click
+        self.bind("<Escape>", lambda e: self.on_quit()) #esc to quit
 
         self.draw()
 
@@ -107,8 +112,13 @@ class SantoriniTk(tk.Tk):
         self.canvas.delete("all")
         self._draw_grid()
         self._draw_cells()
+
+        if self.selected_worker and self.src:
+            self.highlight_selected()
+
         if self.legal:
-            self.highlight(self.legal, outline = "blue")
+            color = COLOR_MOVE if self.phase == "select_dst" else COLOR_BUILD
+            self.highlight(self.legal, outline = color)
     
     # Update status turn
 
@@ -188,6 +198,28 @@ class SantoriniTk(tk.Tk):
             else:
                 self.draw(f"{player}: choose the highlighted cell")
             return              
+
+  
+    
+    def any_moves_for(self,player: str) -> bool:        #legal moves for player
+        for w in self.board.workers:
+            if w.owner == player and legal_moves(self.board, w.pos):
+                return True
+        return False
+    def highlight_selected(self):
+    
+        if self.src is None:
+            return
+        x1, y1, x2, y2 = self._rc_to_xy(*self.src)
+        self.canvas.create_rectangle(x1, y1, x2, y2, outline=COLOR_SELECTED, width=4)
+
+    def on_escape(self): #clear selection on escape
+        if self.phase in {"select_dst", "select_build"}:
+            self.phase = "select_worker"
+            self.selected_worker = None
+            self.src = None
+            self.legal = []
+            self.draw("Selection cleared")
 
 
 def main():
