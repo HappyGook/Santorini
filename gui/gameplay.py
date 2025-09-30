@@ -78,6 +78,11 @@ def play_turn(board: Board, notation: GameNotation, ai_agents: Optional[Dict[str
     if ai_agents and player in ai_agents:
         agent = ai_agents[player]
 
+        # Check if player has any moves
+        if not any(legal_moves(board, w.pos) for w in workers):
+            print(f"{player} has no moves left! They lose.")
+            return True, None, None
+
         # Move phase
         w, dst = agent.make_move(board)
         old = w.pos
