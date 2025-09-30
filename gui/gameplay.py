@@ -158,7 +158,7 @@ def play_turn(board: Board, notation: GameNotation, ai_agents: Optional[Dict[str
         won = move_worker(board, w, dst)
         if won:
             print(f"{player} wins by moving {w.id} to {coords_to_notation(dst)}!")
-            notation.record_turn(old, dst, dst)  # record move (build dummy)
+            notation.record_turn(old, dst)  # record move (build dummy)
             return True, w, dst
         break
 

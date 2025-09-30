@@ -27,11 +27,11 @@ class GameNotation:
     def record_turn(self, old_pos: Coord, move_to: Coord, build_at: Optional[Coord] = None):
         old_str = coords_to_notation(old_pos)
         move_str = coords_to_notation(move_to)
-        if build_at is not None:
+        if build_at is not None and build_at != move_to:
             build_str = coords_to_notation(build_at)
             self.moves.append(f"{old_str}-{move_str},{build_str}")
         else:
-            # For winning moves where no build occurs
+            # Winning move or no build
             self.moves.append(f"{old_str}-{move_str}")
 
     def get_notation(self):
