@@ -10,11 +10,11 @@ class Agent:
 
 
     def make_move(self, board_state):
-        move = self.decide_move(board_state)
-        return move
+        worker, move = self.decide_move(board_state)
+        return worker, move
 
-    def build(self, board_state):
-        build = self.decide_build(board_state)
+    def build(self, worker, board_state):
+        build = self.decide_build(worker, board_state)
         return build
 
     #Function that based on the agent's strategy (evaluation etc.) decides what move to make
@@ -25,13 +25,11 @@ class Agent:
 
         # Here some smart analysis will happen
         choice = random.choice(moves)
-        return choice
+        return chosen_worker, choice
 
     # Function that based on the agent's strategy (evaluation etc.) decides what build to make after the chosen move
-    def decide_build(self, board_state):
-        my_workers = [w for w in board_state.workers if w.owner == self.player_id]
-        chosen_worker = random.choice(my_workers)
-        builds = legal_builds(board_state, chosen_worker.pos)
+    def decide_build(self, worker, board_state):
+        builds = legal_builds(board_state, worker.pos)
 
         # Here some smart analysis will happen
         choice = random.choice(builds)

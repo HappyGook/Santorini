@@ -88,7 +88,7 @@ def play_turn(board: Board, notation: GameNotation, ai_agents: Optional[Dict[str
             return True, w, dst
 
         # Build phase
-        bpos = agent.build(board)
+        bpos = agent.build(w,board)
         build_block(board, w, bpos)
         notation.record_turn(old, dst, bpos)
 
