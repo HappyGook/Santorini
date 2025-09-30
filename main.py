@@ -20,7 +20,7 @@ def main():
 
 
     # Setup phase
-    setup_workers(board, notation)
+    setup_workers(board, notation, agents)
     render_board(board)
 
     # Default starting player if not set

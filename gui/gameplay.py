@@ -44,29 +44,43 @@ def input_worker_id(prompt: str, choices: List[str]) -> str:    #pick worker id 
             return s
         print(f"Invalid choice, must be one of {choices}")
 
-def setup_workers(board: Board, notation: GameNotation):
+def setup_workers(board: Board, notation: GameNotation, ai_agents: Optional[Dict[str, Agent]] = None):
     """Prompt both players to place their workers."""
     players = ["P1", "P2"]
     workers = []
 
     for player in players:
-        for label in ["A", "B"]:
-            while True:
-                pos_str = input(f"{player}, place your worker {label} (e.g., a1): ")
-                try:
-                    pos = notation_to_coords(pos_str)
-                    cell = board.get_cell(pos)
-                    if cell.worker_id is not None:
-                        print("Cell already occupied, choose another.")
-                        continue
-                    worker = Worker(id=f"{player}{label}", owner=player, pos=pos)
-                    board.workers.append(worker)
-                    cell.worker_id = worker.id
-                    workers.append(worker)
-                    notation.record_setup(worker)
-                    break
-                except Exception as e:
-                    print("Invalid input:", e)
+        if ai_agents and player in ai_agents:
+            agent = ai_agents[player]
+            positions = agent.setup_workers(board)
+            for label, pos in zip(["A", "B"], positions):
+                cell = board.get_cell(pos)
+                if cell.worker_id is not None:
+                    # This should not happen if agent chooses empty cells, but just in case
+                    raise ValueError(f"Cell {pos} already occupied during setup by AI.")
+                worker = Worker(id=f"{player}{label}", owner=player, pos=pos)
+                board.workers.append(worker)
+                cell.worker_id = worker.id
+                workers.append(worker)
+                notation.record_setup(worker)
+        else:
+            for label in ["A", "B"]:
+                while True:
+                    pos_str = input(f"{player}, place your worker {label} (e.g., a1): ")
+                    try:
+                        pos = notation_to_coords(pos_str)
+                        cell = board.get_cell(pos)
+                        if cell.worker_id is not None:
+                            print("Cell already occupied, choose another.")
+                            continue
+                        worker = Worker(id=f"{player}{label}", owner=player, pos=pos)
+                        board.workers.append(worker)
+                        cell.worker_id = worker.id
+                        workers.append(worker)
+                        notation.record_setup(worker)
+                        break
+                    except Exception as e:
+                        print("Invalid input:", e)
     return workers
 
 def play_turn(board: Board, notation: GameNotation, ai_agents: Optional[Dict[str, Agent]] = None):
@@ -85,6 +99,9 @@ def play_turn(board: Board, notation: GameNotation, ai_agents: Optional[Dict[str
 
         # Move phase
         w, dst = agent.make_move(board)
+        if w is None:
+            print(f"{player} has no legal moves! They lose.")
+            return True, None, None
         old = w.pos
         won = move_worker(board, w, dst)
         if won:
