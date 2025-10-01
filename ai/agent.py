@@ -2,7 +2,7 @@ import random
 
 from game.rules import legal_moves, legal_builds
 from game.board import BOARD_SIZE
-
+from heuristics import evaluate
 
 class Agent:
     def __init__(self, player_id: str):
