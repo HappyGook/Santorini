@@ -6,6 +6,8 @@ from gui.notation import coords_to_notation, GameNotation
 
 from game.rules import legal_moves, legal_builds
 from game.moves import move_worker, build_block
+from ai.agent import Agent
+from gui.gameplay import GameController
 
 
 CELL = 80 #pixels per cell
@@ -22,10 +24,12 @@ def place(board, worker_id: str, owner: str, pos: tuple[int, int]) -> None: # cr
     board.grid[pos].worker_id = worker_id
 
 class SantoriniTk(tk.Tk):
-    def __init__(self, board: Board):
+    def __init__(self, board: Board, controller: GameController):
         super().__init__()
         self.title("Santorini")
         self.board = board
+        self.game_over = False
+        self.controller = controller
 
         w = h = MARGIN * 2 + CELL * BOARD_SIZE
         self.canvas = tk.Canvas(self, width=w, height=h, bg="white")
@@ -43,9 +47,13 @@ class SantoriniTk(tk.Tk):
         self.legal = [] # hold legal target cells 
 
         self.canvas.bind("<Button-1>", self.on_click) #left click
-        self.bind("<Escape>", lambda e: self.on_quit()) #esc to quit
+        self.bind("<Escape>", lambda e: self.on_escape()) #esc to quit
 
         self.draw()
+
+        # If the game starts with an AI (AI vs AI or AI vs P2), kick off the loop:
+        if self.controller.is_ai_turn():
+            self.after(50, self.ai_pump)
 
 
     def click_to_rc(self, event): #convert click to row/col
@@ -127,6 +135,9 @@ class SantoriniTk(tk.Tk):
         self.status.config(text = banner or f"{who}: {phase_text}")
 
     def on_click(self, event): #handle click 
+            
+        if self.game_over or self.controller.is_ai_turn():# ignore clicks during AI turn or after game end
+            return
         rc = self.click_to_rc(event)
         if rc is None:
             return
@@ -139,7 +150,7 @@ class SantoriniTk(tk.Tk):
             picked = None
             for w in self.board.workers:
                 if w.owner == player and w.pos == rc:
-                    moves = legal_moves(self.board, w.pos)
+                    moves = self.controller.legal_moves_for(w)
                     if moves:
                         picked = w
                         self.legal= moves
@@ -160,19 +171,16 @@ class SantoriniTk(tk.Tk):
             if rc in self.legal and self.selected_worker is not None:
                 src = self.src
                 dst = rc
-                won = move_worker(self.board, self.selected_worker, dst)
-                self.legal =[]
+                ok = self.controller.apply_move(self.selected_worker, dst)
+                if not ok:
+                    self.draw(f"{player}: illegal move")
+                    return
+
+                self.legal = []
                 self.phase = "select_build"
                 self.draw(f"{player}: moved {src} -> {dst}")
 
-                if won:
-                    self.phase = "game_over"
-                    self.draw(f"{player} wins by moving {self.selected_worker.id} to {coords_to_notation(dst)}!")
-                    return
-
-                self.legal = legal_builds(self.board, dst)
-                self.phase = "select_build"
-                self.legal = legal_builds(self.board, dst)
+                self.legal = self.controller.legal_builds_for(self.selected_worker)
                 self.draw(f"{player}: select a build square")
 
             else:
@@ -182,7 +190,11 @@ class SantoriniTk(tk.Tk):
         # click legal build then end turn
         if self.phase == "select_build":
             if rc in self.legal and self.selected_worker is not None:
-                build_block(self.board, self.selected_worker, rc)
+
+                ok = self.controller.apply_build(self.selected_worker, rc)
+                if not ok:
+                    self.draw(f"{player}: illegal build")
+                    return
 
                 # end turn clear selection
                 # 
@@ -192,14 +204,29 @@ class SantoriniTk(tk.Tk):
                 self.phase = "select_Worker"
 
                 # switch player
-                other = "P2" if player == "P1" else "P1"
-                self.board.current_player = other
-                self.draw(f"Built at {coords_to_notation(rc)} -{other}'s turn")
+                self.controller.end_turn()
+                who = getattr(self.board, "current_player", "P1")
+                self.draw(f"Built at {coords_to_notation(rc)} - {who}'s turn")
+
+                if self.controller.is_ai_turn() and not self.game_over:
+                    self.after(50, self.ai_pump)
             else:
                 self.draw(f"{player}: choose the highlighted cell")
             return              
 
-  
+    def ai_pump(self):
+        if self.game_over:
+            return
+        
+        status, w, payload = self.controller.run_ai_turn()
+        self.draw()
+
+        if status in ("win", "opponent_no_moves", "no_move"):
+            self.game_over = True
+            return
+
+        if self.controller.is_ai_turn() and not self.game_over:
+            self.after(50, self.ai_pump) #continue ai turn after delay
     
     def any_moves_for(self,player: str) -> bool:        #legal moves for player
         for w in self.board.workers:
@@ -215,7 +242,7 @@ class SantoriniTk(tk.Tk):
 
     def on_escape(self): #clear selection on escape
         if self.phase in {"select_dst", "select_build"}:
-            self.phase = "select_worker"
+            self.phase = "select_Worker"
             self.selected_worker = None
             self.src = None
             self.legal = []
@@ -227,14 +254,17 @@ def main():
     
     board = Board([])
     board.current_player = "P1"
-
     place(board, "P1A", "P1", (0, 0))
+    place(board, "P1B", "P1", (0, 2))
     place(board, "P2A", "P2", (4, 4))
-    board.grid[(0,0)].height = 2
-    board.grid[(1,1)].height = 1
-    board.grid[(2,2)].height = 3
+    place(board, "P2B", "P2", (4, 2))
 
-    app = SantoriniTk(board)
+    players = {
+        "P1": {"type": "HUMAN", "agent": None},
+        "P2": {"type": "AI", "agent": Agent(player_id="P2")},
+    }
+    controller = GameController(board, players)
+    app = SantoriniTk(board, controller)
     app.mainloop()
 
 if __name__ == "__main__":

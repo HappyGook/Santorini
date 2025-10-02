@@ -1,9 +1,10 @@
 from ai.agent import Agent
 from game.board import Board
 from gui.notation import GameNotation
-from gui.gameplay import setup_workers, play_turn, render_board
+from gui.gameplay import GameController
+from gui.window import SantoriniTk, place
 
-
+"""
 def main():
     print("Welcome to Santorini CLI!")
     board = Board()
@@ -38,6 +39,27 @@ def main():
             print("Final notation:")
             print(notation)
             break
+
+"""
+
+def main():
+    board = Board([])
+    board.current_player = "P1"
+
+    # simple placement so both sides can move
+    place(board, "P1A", "P1", (0, 0))
+    place(board, "P1B", "P1", (0, 2))
+    place(board, "P2A", "P2", (4, 4))
+    place(board, "P2B", "P2", (4, 2))
+
+    players = {
+        "P1": {"type": "HUMAN", "agent": None},
+        "P2": {"type": "AI", "agent": Agent(player_id="P2")},
+    }
+    controller = GameController(board, players)
+
+    app = SantoriniTk(board, controller)
+    app.mainloop()
 
 
 if __name__ == "__main__":
