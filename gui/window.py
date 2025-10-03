@@ -168,7 +168,24 @@ class SantoriniTk(tk.Tk):
         # click legal dst
 
         if self.phase == "select_dst":
-
+            
+            clicked_worker = None       #allow switching to another own worker
+            for w in self.board.workers:
+                if w.owner == player and w.pos == rc:
+                    clicked_worker = w
+                    break
+            if clicked_worker is not None:
+                #clicked another worker of same player 
+                moves = self.controller.legal_moves_for(clicked_worker)
+                if moves:
+                    self.selected_worker = clicked_worker
+                    self.src = rc
+                    self.legal = moves
+                    self.phased = "select_dst"
+                    self.draw(f"{player}: select move for {clicked_worker.id}")
+                else:
+                    self.draw(f"{player}: no moves for worker ")
+                return
     
             if rc in self.legal and self.selected_worker is not None:
                 src = self.src
@@ -182,7 +199,7 @@ class SantoriniTk(tk.Tk):
                 self.phase = "select_build"
                 self.draw(f"{player}: moved {src} -> {dst}")
 
-                if won:
+                if won:# win checked
                     self.phase = "game_over"
                     self.draw(f"{player} wins by moving {self.selected_worker.id} to {coords_to_notation(dst)}!")
                     return
