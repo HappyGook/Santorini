@@ -1,7 +1,7 @@
 import tkinter as tk
 
 from game.board import Board
-from game.models import BOARD_SIZE, Worker, Cell
+from game.models import BOARD_SIZE, Worker
 from gui.notation import coords_to_notation, GameNotation
 
 from game.rules import legal_moves, legal_builds
@@ -168,10 +168,12 @@ class SantoriniTk(tk.Tk):
         # click legal dst
 
         if self.phase == "select_dst":
+
+    
             if rc in self.legal and self.selected_worker is not None:
                 src = self.src
                 dst = rc
-                ok = self.controller.apply_move(self.selected_worker, dst)
+                ok,won= self.controller.apply_move(self.selected_worker, dst)
                 if not ok:
                     self.draw(f"{player}: illegal move")
                     return
@@ -179,6 +181,11 @@ class SantoriniTk(tk.Tk):
                 self.legal = []
                 self.phase = "select_build"
                 self.draw(f"{player}: moved {src} -> {dst}")
+
+                if won:
+                    self.phase = "game_over"
+                    self.draw(f"{player} wins by moving {self.selected_worker.id} to {coords_to_notation(dst)}!")
+                    return
 
                 self.legal = self.controller.legal_builds_for(self.selected_worker)
                 self.draw(f"{player}: select a build square")
@@ -230,9 +237,10 @@ class SantoriniTk(tk.Tk):
     
     def any_moves_for(self,player: str) -> bool:        #legal moves for player
         for w in self.board.workers:
-            if w.owner == player and legal_moves(self.board, w.pos):
+            if w.owner == player and self.controller.legal_moves_for(self.board, w.pos):
                 return True
         return False
+    
     def highlight_selected(self):
     
         if self.src is None:

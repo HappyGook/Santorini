@@ -218,6 +218,8 @@ class GameController:
     def apply_move(self, worker,dst:Tuple[int,int]) -> bool:
         if dst not in self.legal_moves_for(worker):
             return False
+        won = move_worker(self.board, worker, dst)
+        return (True,won)
         
         move_worker(self.board, worker, dst)
         return True
