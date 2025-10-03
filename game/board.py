@@ -1,3 +1,4 @@
+import copy
 from typing import Dict, List, Optional
 from game.models import Cell, Coord, BOARD_SIZE, Worker
 
@@ -34,3 +35,6 @@ class Board:
             if self.in_bounds(p):
                 out.append(p)
         return out
+
+    def clone(self) -> "Board":
+        return copy.deepcopy(self)

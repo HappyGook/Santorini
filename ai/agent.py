@@ -2,7 +2,7 @@ import random
 
 from game.rules import legal_moves, legal_builds
 from game.board import BOARD_SIZE
-from ai.heuristics import evaluate
+from ai.minimax import minimax
 
 class Agent:
     def __init__(self, player_id: str):
@@ -11,23 +11,8 @@ class Agent:
 
 
     def decide_action(self, board_state):
-        my_workers = [w for w in board_state.workers if w.owner == self.player_id]
-        # filter out workers that cannot move
-        movable_workers = [w for w in my_workers if legal_moves(board_state, w.pos)]
-        if not movable_workers:
-            return None, None, None  # no legal moves at all
-
-        chosen_worker = random.choice(movable_workers)
-        moves = legal_moves(board_state, chosen_worker.pos)
-        move_choice = random.choice(moves)
-        if not moves:
-            return None, None, None
-
-        builds = legal_builds(board_state, move_choice)
-        build_choice = random.choice(builds)
-        if not builds:
-            return None, None, None
-        return chosen_worker, move_choice, build_choice
+        _, action = minimax(board_state, depth=3, player_id=self.player_id, max_player_id=self.player_id)
+        return action
 
     def decide_setup(self, board_state):
         empty_cells = [
