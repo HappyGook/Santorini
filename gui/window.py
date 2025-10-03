@@ -1,4 +1,5 @@
 import tkinter as tk
+from tkinter import ttk
 
 from game.board import Board
 from game.models import BOARD_SIZE, Worker
@@ -273,24 +274,40 @@ class SantoriniTk(tk.Tk):
             self.legal = []
             self.draw("Selection cleared")
 
+def choose_mode_ui()-> str: #gamemode
+    root = tk.Tk()
+    root.title  ("Choose Game Mode")
+    root.geometry("300x200")
+    root.resizable(False, False)
 
-def main():
+    mode_var = tk.StringVar(value="pvai")
 
+    ttk.Label(root, text= "Select Game Mode:", padding =10).pack(anchor="w")
+    ttk.Radiobutton(root, text="Human vs Human", variable=mode_var, value="pvp", padding=10).pack(anchor="w")
+    ttk.Radiobutton(root, text="Human vs AI", variable=mode_var, value="pvai", padding=10).pack(anchor="w")
+    ttk.Radiobutton(root, text="AI vs AI", variable=mode_var, value="aivai", padding=10).pack(anchor="w")
+
+    selected = {"val": None}
+    def start():
+
+        selected["val"] = mode_var.get()
+        root.destroy()
     
-    board = Board([])
-    board.current_player = "P1"
-    place(board, "P1A", "P1", (0, 0))
-    place(board, "P1B", "P1", (0, 2))
-    place(board, "P2A", "P2", (4, 4))
-    place(board, "P2B", "P2", (4, 2))
+    ttk.Button(root, text="Start Game", command=start, padding=10).pack(anchor="center", pady=20)
+    root.mainloop()
+    return selected["val"]
 
-    players = {
-        "P1": {"type": "HUMAN", "agent": None},
-        "P2": {"type": "AI", "agent": Agent(player_id="P2")},
-    }
-    controller = GameController(board, players)
-    app = SantoriniTk(board, controller)
-    app.mainloop()
+def build_players(mode:str):
+    
+    if mode =="pvp":
+        return { "P1": {"type": "HUMAN", "agent": None},
+                 "P2": {"type": "HUMAN", "agent": None}}
 
-if __name__ == "__main__":
-        main()
+    if mode == "pvai":
+        return { "P1": {"type": "HUMAN", "agent": None},
+                 "P2": {"type": "AI", "agent": Agent(player_id="P2")}}
+    if mode == "aivai":
+        return { "P1": {"type": "AI", "agent": Agent(player_id="P1")},
+                 "P2": {"type": "AI", "agent": Agent(player_id="P2")}}
+    raise ValueError(f"Unknown mode {mode}")
+

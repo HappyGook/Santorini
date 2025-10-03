@@ -2,7 +2,7 @@ from ai.agent import Agent
 from game.board import Board
 from gui.notation import GameNotation
 from gui.gameplay import GameController
-from gui.window import SantoriniTk, place
+from gui.window import SantoriniTk, place, choose_mode_ui, build_players
 
 """
 def main():
@@ -43,6 +43,9 @@ def main():
 """
 
 def main():
+
+    mode = choose_mode_ui()
+
     board = Board([])
     board.current_player = "P1"
 
@@ -52,10 +55,7 @@ def main():
     place(board, "P2A", "P2", (4, 4))
     place(board, "P2B", "P2", (4, 2))
 
-    players = {
-        "P1": {"type": "HUMAN", "agent": None},
-        "P2": {"type": "AI", "agent": Agent(player_id="P2")},
-    }
+    players = build_players(mode)
     controller = GameController(board, players)
 
     app = SantoriniTk(board, controller)
