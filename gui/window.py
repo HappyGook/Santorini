@@ -242,25 +242,50 @@ class SantoriniTk(tk.Tk):
     def ai_pump(self):
         if self.game_over:
             return
-        
-        status, w, payload = self.controller.run_ai_turn()
-        self.draw()
 
-        if status in ("win", "opponent_no_moves", "no_move"):
+        player = getattr(self.board, "current_player", "P1")
+        agent = self.controller.players[player]["agent"]
+        if agent is None:
+            return
+
+        worker, move, build = agent.decide_action(self.board)
+
+        if worker is None or move is None or build is None:
             self.game_over = True
             return
 
+        ok_move, won = self.controller.apply_move(worker, move)
+        if not ok_move:
+            self.draw(f"{worker.owner}: illegal move by AI")
+            self.game_over = True
+            return
+
+        ok_build = self.controller.apply_build(worker, build)
+        if not ok_build:
+            self.draw(f"{worker.owner}: illegal build by AI")
+            self.game_over = True
+            return
+
+        self.draw()
+
+        if won:
+            self.game_over = True
+            self.draw(f"{worker.owner} wins by moving {worker.id} to {coords_to_notation(move)}!")
+            return
+
+        self.controller.end_turn()
+
         if self.controller.is_ai_turn() and not self.game_over:
             self.after(50, self.ai_pump) #continue ai turn after delay
-    
+
     def any_moves_for(self,player: str) -> bool:        #legal moves for player
         for w in self.board.workers:
             if w.owner == player and self.controller.legal_moves_for(self.board, w.pos):
                 return True
         return False
-    
+
     def highlight_selected(self):
-    
+
         if self.src is None:
             return
         x1, y1, x2, y2 = self._rc_to_xy(*self.src)
@@ -292,13 +317,13 @@ def choose_mode_ui()-> str: #gamemode
 
         selected["val"] = mode_var.get()
         root.destroy()
-    
+
     ttk.Button(root, text="Start Game", command=start, padding=10).pack(anchor="center", pady=20)
     root.mainloop()
     return selected["val"]
 
 def build_players(mode:str):
-    
+
     if mode =="pvp":
         return { "P1": {"type": "HUMAN", "agent": None},
                  "P2": {"type": "HUMAN", "agent": None}}
@@ -310,4 +335,3 @@ def build_players(mode:str):
         return { "P1": {"type": "AI", "agent": Agent(player_id="P1")},
                  "P2": {"type": "AI", "agent": Agent(player_id="P2")}}
     raise ValueError(f"Unknown mode {mode}")
-

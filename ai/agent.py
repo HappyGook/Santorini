@@ -10,34 +10,24 @@ class Agent:
         self.phrases=[...]
 
 
-    def make_move(self, board_state):
-        worker, move = self.decide_move(board_state)
-        return worker, move
-
-    def build(self, worker, board_state):
-        build = self.decide_build(worker, board_state)
-        return build
-
-    #Function that based on the agent's strategy (evaluation etc.) decides what move to make
-    def decide_move(self, board_state):
+    def decide_action(self, board_state):
         my_workers = [w for w in board_state.workers if w.owner == self.player_id]
         # filter out workers that cannot move
         movable_workers = [w for w in my_workers if legal_moves(board_state, w.pos)]
         if not movable_workers:
-            return None, None  # no legal moves at all
+            return None, None, None  # no legal moves at all
 
         chosen_worker = random.choice(movable_workers)
         moves = legal_moves(board_state, chosen_worker.pos)
-        choice = random.choice(moves)
-        return chosen_worker, choice
+        move_choice = random.choice(moves)
+        if not moves:
+            return None, None, None
 
-    # Function that based on the agent's strategy (evaluation etc.) decides what build to make after the chosen move
-    def decide_build(self, worker, board_state):
-        builds = legal_builds(board_state, worker.pos)
-
-        # Here some smart analysis will happen
-        choice = random.choice(builds)
-        return choice
+        builds = legal_builds(board_state, move_choice)
+        build_choice = random.choice(builds)
+        if not builds:
+            return None, None, None
+        return chosen_worker, move_choice, build_choice
 
     def decide_setup(self, board_state):
         empty_cells = [
