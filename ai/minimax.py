@@ -47,6 +47,9 @@ def minimax(board, depth: int, player_id: str, max_player_id: str, alpha=-INF, b
             alpha = max(alpha, score)
             if beta <= alpha:
                 break
+        if best_action is None and actions:
+            print(f"[WARN] No valid actions selected at depth {depth} for {player_id}, "
+                  f"actions count={len(actions)}")
         return value, best_action
     else:
         value = INF
@@ -69,6 +72,9 @@ def minimax(board, depth: int, player_id: str, max_player_id: str, alpha=-INF, b
             beta = min(beta, score)
             if beta <= alpha:
                 break
+        if best_action is None and actions:
+            print(f"[WARN] No valid actions selected at depth {depth} for {player_id}, "
+                  f"actions count={len(actions)}")
         return value, best_action
 
 def generate_actions(board, player_id) -> List[Action]:

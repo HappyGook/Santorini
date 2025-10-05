@@ -9,9 +9,10 @@ class Agent:
         self.player_id = player_id
         self.phrases=[...]
 
-
     def decide_action(self, board_state):
         _, action = minimax(board_state, depth=3, player_id=self.player_id, max_player_id=self.player_id)
+        if action is None:
+            return None, None, None
         return action
 
     def decide_setup(self, board_state):
