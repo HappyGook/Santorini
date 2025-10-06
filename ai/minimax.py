@@ -75,6 +75,7 @@ def minimax(board, depth: int, player_id: str, max_player_id: str, alpha=-INF, b
         board.print_board()
         print("New board:\n")
         new_board.print_board()
+        best_action = actions[0]
 
     return value, best_action
 
