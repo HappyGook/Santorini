@@ -130,9 +130,9 @@ class SantoriniTk(tk.Tk):
         if p1_done and p2_done:
             self.phase = "select_Worker"
             self.draw(f"{pid}: select worker")
-        if self.controller.is_ai_turn():
-            self.after(50, self.ai_pump)
-            return
+            if self.controller.is_ai_turn():
+                self.after(50, self.ai_pump)
+                return
 
         have_next = sum(1 for w in self.board.workers if w.owner == pid)
         self.setup_label = "A" if have_next == 0 else "B"
