@@ -38,3 +38,14 @@ class Board:
 
     def clone(self) -> "Board":
         return copy.deepcopy(self)
+
+    def print_board(self) -> None:
+        """
+        Print a readable representation of the board grid.
+        For each cell, show its coordinates, height, and worker (if any).
+        """
+        for r in range(BOARD_SIZE):
+            for c in range(BOARD_SIZE):
+                cell = self.grid[(r, c)]
+                print(f"({r},{c}): h={cell.height}, w={cell.worker_id}")
+            print()  # Blank line between rows for readability

@@ -26,4 +26,5 @@ def build_block(board: Board, worker: Worker, build_pos: Coord) -> None:
     build_cell.height += 1
 
     # Switch turn
+    # TODO HERE IS THE BUG!! It fucks up the recursion 🐛
     board.current_player = "P2" if board.current_player == "P1" else "P1"

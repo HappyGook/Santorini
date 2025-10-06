@@ -33,6 +33,7 @@ def minimax(board, depth: int, player_id: str, max_player_id: str, alpha=-INF, b
                 new_worker = next(w for w in new_board.workers if w.id == worker.id)
             except StopIteration:
                 # Worker not found in clone? fallback to invalid action skip
+                print(f"[DEBUG] Worker id {worker.id} not found in cloned board at depth {depth}")
                 continue
             won = move_worker(new_board, new_worker, move)
             if won:
@@ -50,6 +51,10 @@ def minimax(board, depth: int, player_id: str, max_player_id: str, alpha=-INF, b
         if best_action is None and actions:
             print(f"[WARN] No valid actions selected at depth {depth} for {player_id}, "
                   f"actions count={len(actions)}")
+            print("Old board:\n")
+            board.print_board()
+            print("New board:\n")
+            new_board.print_board()
         return value, best_action
     else:
         value = INF
@@ -59,6 +64,7 @@ def minimax(board, depth: int, player_id: str, max_player_id: str, alpha=-INF, b
             try:
                 new_worker = next(w for w in new_board.workers if w.id == worker.id)
             except StopIteration:
+                print(f"[DEBUG] Worker id {worker.id} not found in cloned board at depth {depth}")
                 continue
             won = move_worker(new_board, new_worker, move)
             if won:
@@ -75,6 +81,10 @@ def minimax(board, depth: int, player_id: str, max_player_id: str, alpha=-INF, b
         if best_action is None and actions:
             print(f"[WARN] No valid actions selected at depth {depth} for {player_id}, "
                   f"actions count={len(actions)}")
+            print("Old board:\n")
+            board.print_board()
+            print("New board:\n")
+            new_board.print_board()
         return value, best_action
 
 def generate_actions(board, player_id) -> List[Action]:
