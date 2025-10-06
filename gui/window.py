@@ -1,12 +1,8 @@
 import tkinter as tk
 from tkinter import ttk
-
 from game.board import Board
 from game.models import BOARD_SIZE, Worker
-from gui.notation import coords_to_notation, GameNotation
-
-from game.rules import legal_moves, legal_builds
-from game.moves import move_worker, build_block
+from gui.notation import coords_to_notation
 from ai.agent import Agent
 from gui.gameplay import GameController
 
@@ -132,18 +128,18 @@ class SantoriniTk(tk.Tk):
     # Update status turn
 
         phase_text =self.phase.replace("_"," ")
-        who = getattr(self.board, "current_player", "P1")
-        self.status.config(text = banner or f"{who}: {phase_text}")
+        who = self.board.current_player
+        self.status.config(text=banner or f"{who}: {phase_text}")
 
-    def on_click(self, event): #handle click 
-            
+    def on_click(self, event): #handle click
+
         if self.game_over or self.controller.is_ai_turn():# ignore clicks during AI turn or after game end
             return
         rc = self.click_to_rc(event)
         if rc is None:
             return
-        
-        player =getattr(self.board, "current_player", "P1")
+
+        player = self.board.current_player
 
         #1select movable worker
         if self.phase == "select_Worker":
@@ -156,7 +152,7 @@ class SantoriniTk(tk.Tk):
                         picked = w
                         self.legal= moves
                         break
-            
+
             if picked:
                 self.selected_worker = picked
                 self.src = rc
@@ -165,29 +161,29 @@ class SantoriniTk(tk.Tk):
             else:
                 self.draw(f"{player}: no moves for worker ")
             return
-        
+
         # click legal dst
 
         if self.phase == "select_dst":
-            
+
             clicked_worker = None       #allow switching to another own worker
             for w in self.board.workers:
                 if w.owner == player and w.pos == rc:
                     clicked_worker = w
                     break
             if clicked_worker is not None:
-                #clicked another worker of same player 
+                #clicked another worker of same player
                 moves = self.controller.legal_moves_for(clicked_worker)
                 if moves:
                     self.selected_worker = clicked_worker
                     self.src = rc
                     self.legal = moves
-                    self.phased = "select_dst"
+                    self.phase = "select_dst"
                     self.draw(f"{player}: select move for {clicked_worker.id}")
                 else:
                     self.draw(f"{player}: no moves for worker ")
                 return
-    
+
             if rc in self.legal and self.selected_worker is not None:
                 src = self.src
                 dst = rc
@@ -221,29 +217,31 @@ class SantoriniTk(tk.Tk):
                     self.draw(f"{player}: illegal build")
                     return
 
+                print(f"[DEBUG] {player} built at {rc}, about to end turn")
+                self.controller.end_turn()
+
                 # end turn clear selection
-                # 
+                #
                 self.legal =[]
                 self.selected_worker = None
                 self.src = None
                 self.phase = "select_Worker"
 
                 # switch player
-                self.controller.end_turn()
-                who = getattr(self.board, "current_player", "P1")
+                who = self.board.current_player
                 self.draw(f"Built at {coords_to_notation(rc)} - {who}'s turn")
 
                 if self.controller.is_ai_turn() and not self.game_over:
                     self.after(50, self.ai_pump)
             else:
                 self.draw(f"{player}: choose the highlighted cell")
-            return              
+            return
 
     def ai_pump(self):
         if self.game_over:
             return
 
-        player = getattr(self.board, "current_player", "P1")
+        player = self.board.current_player
         agent = self.controller.players[player]["agent"]
         if agent is None:
             return
@@ -266,6 +264,9 @@ class SantoriniTk(tk.Tk):
             self.game_over = True
             return
 
+        print(f"[DEBUG] AI {worker.owner} built at {build}, about to end turn")
+        self.controller.end_turn()
+
         self.draw()
 
         if won:
@@ -273,7 +274,6 @@ class SantoriniTk(tk.Tk):
             self.draw(f"{worker.owner} wins by moving {worker.id} to {coords_to_notation(move)}!")
             return
 
-        self.controller.end_turn()
 
         if self.controller.is_ai_turn() and not self.game_over:
             self.after(50, self.ai_pump) #continue ai turn after delay

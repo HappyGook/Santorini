@@ -14,6 +14,8 @@ def move_worker(board: Board, worker: Worker, dst: Coord) -> bool:
 
     # Update worker
     worker.pos = dst
+    cell = board.get_cell(dst)
+    print(f"[DEBUG] moving {worker.id} from {worker.pos} to {dst}, dst.height={cell.height}, dst.worker_id={cell.worker_id}")
 
     # Check win condition
     if dst_cell.height == 3:
@@ -24,7 +26,5 @@ def move_worker(board: Board, worker: Worker, dst: Coord) -> bool:
 def build_block(board: Board, worker: Worker, build_pos: Coord) -> None:
     build_cell = board.get_cell(build_pos)
     build_cell.height += 1
-
-    # Switch turn
-    # TODO HERE IS THE BUG!! It fucks up the recursion 🐛
-    board.current_player = "P2" if board.current_player == "P1" else "P1"
+    cell = board.get_cell(build_pos)
+    print(f"[DEBUG] building at {build_pos}, current height={cell.height}")

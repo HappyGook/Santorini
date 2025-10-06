@@ -30,7 +30,10 @@ def minimax(board, depth: int, player_id: str, max_player_id: str, alpha=-INF, b
             new_board = board.clone()
             # find worker in new_board
             try:
-                new_worker = next(w for w in new_board.workers if w.id == worker.id)
+                new_worker = find_worker_by_id(new_board, worker.id)
+                if new_worker is None:
+                    print(f"[DEBUG] Worker id {worker.id} not found in cloned board at depth {depth}")
+                    continue
             except StopIteration:
                 # Worker not found in clone? fallback to invalid action skip
                 print(f"[DEBUG] Worker id {worker.id} not found in cloned board at depth {depth}")
@@ -62,7 +65,10 @@ def minimax(board, depth: int, player_id: str, max_player_id: str, alpha=-INF, b
             worker, move, build = action
             new_board = board.clone()
             try:
-                new_worker = next(w for w in new_board.workers if w.id == worker.id)
+                new_worker = find_worker_by_id(new_board, worker.id)
+                if new_worker is None:
+                    print(f"[DEBUG] Worker id {worker.id} not found in cloned board at depth {depth}")
+                    continue
             except StopIteration:
                 print(f"[DEBUG] Worker id {worker.id} not found in cloned board at depth {depth}")
                 continue
@@ -97,3 +103,6 @@ def generate_actions(board, player_id) -> List[Action]:
     return actions
 
 def other(player_id): return "P1" if player_id=="P2" else "P2"
+
+def find_worker_by_id(board, worker_id):
+    return next((w for w in board.workers if w.id == worker_id), None)

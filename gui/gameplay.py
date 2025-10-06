@@ -1,251 +1,66 @@
 from __future__ import annotations
-from typing import Tuple, List, Optional, Dict, Literal
+from typing import Tuple, Dict, Literal
 from game.board import Board
-from game.models import Worker, Cell, BOARD_SIZE
 from game.moves import move_worker, build_block
-from game.rules import legal_moves, legal_builds, player_has_moves
-from gui.notation import GameNotation, notation_to_coords, coords_to_notation
-from ai.agent import Agent
+from game.rules import legal_moves, legal_builds
 
 
 ActorType = Literal["HUMAN", "AI"]
 Coord = Tuple[int, int]
 
-def render_board(b: Board) -> None: #print board and height and worker id
-
-    letters = [chr(ord('a') + c) for c in range(BOARD_SIZE)]
-    print("\n   " + "  ".join(letters))
-    for r in range(BOARD_SIZE):
-        row_bits = []
-        for c in range(BOARD_SIZE):
-            cell = b.grid[(r, c)]
-            tag = (cell.worker_id or " ").ljust(2)
-            row_bits.append(f"{cell.height}{tag}")
-        print(f"{r+1} " + " ".join(row_bits))
-    print()
-   
-def player_workers(b: Board, player:str) -> List[Worker]:
-
-    return [w for w in b.workers if w.owner == player] #filter workers by player
-
-def any_moves_for(b: Board, player: str) -> bool:
-    return any(legal_moves(b, w.pos) for w in player_workers(b, player))  #check if  worker has any legal moves noch
-
-
-def input_coord(prompt: str) -> Coord:
-    s = input(prompt).strip()   #parse a1 to row,col
-    return notation_to_coords(s)
-
-def input_worker_id(prompt: str, choices: List[str]) -> str:    #pick worker id from list
-     
-    while True:
-        s = input(prompt).strip()
-        if s in choices:
-            return s
-        print(f"Invalid choice, must be one of {choices}")
-
-def setup_workers(board: Board, notation: GameNotation, ai_agents: Optional[Dict[str, Agent]] = None):
-    """Prompt both players to place their workers."""
-    players = ["P1", "P2"]
-    workers = []
-
-    for player in players:
-        if ai_agents and player in ai_agents:
-            agent = ai_agents[player]
-            positions = agent.setup_workers(board)
-            for label, pos in zip(["A", "B"], positions):
-                cell = board.get_cell(pos)
-                if cell.worker_id is not None:
-                    # This should not happen if agent chooses empty cells, but just in case
-                    raise ValueError(f"Cell {pos} already occupied during setup by AI.")
-                worker = Worker(id=f"{player}{label}", owner=player, pos=pos)
-                board.workers.append(worker)
-                cell.worker_id = worker.id
-                workers.append(worker)
-                notation.record_setup(worker)
-        else:
-            for label in ["A", "B"]:
-                while True:
-                    pos_str = input(f"{player}, place your worker {label} (e.g., a1): ")
-                    try:
-                        pos = notation_to_coords(pos_str)
-                        cell = board.get_cell(pos)
-                        if cell.worker_id is not None:
-                            print("Cell already occupied, choose another.")
-                            continue
-                        worker = Worker(id=f"{player}{label}", owner=player, pos=pos)
-                        board.workers.append(worker)
-                        cell.worker_id = worker.id
-                        workers.append(worker)
-                        notation.record_setup(worker)
-                        break
-                    except Exception as e:
-                        print("Invalid input:", e)
-    return workers
-
-def play_turn(board: Board, notation: GameNotation, ai_agents: Optional[Dict[str, Agent]] = None): 
-    """Run one turn for the current player."""
-    player = board.current_player
-    workers = [w for w in board.workers if w.owner == player]
-
-    # === AI PATH ===
-    if ai_agents and player in ai_agents:
-        agent = ai_agents[player]
-
-        # Check if player has any moves
-        if not any(legal_moves(board, w.pos) for w in workers):
-            print(f"{player} has no moves left! They lose.")
-            return True, None, None
-
-        # Move phase
-        w, dst = agent.make_move(board)
-        if w is None:
-            print(f"{player} has no legal moves! They lose.")
-            return True, None, None
-        old = w.pos
-        won = move_worker(board, w, dst)
-        if won:
-            print(f"{player} wins by moving {w.id} to {coords_to_notation(dst)}!")
-            notation.record_turn(old, dst, dst)  # record move (build dummy same as move)
-            return True, w, dst
-
-        # Build phase
-        bpos = agent.build(w,board)
-        build_block(board, w, bpos)
-        notation.record_turn(old, dst, bpos)
-
-        # Check if opponent has moves
-        if not player_has_moves(board, board.current_player):
-            print(f"{board.current_player} has no moves left! They lose.")
-            return True, w, dst
-
-        # Switch player
-        board.current_player = "P2" if player == "P1" else "P1"
-        return False, w, dst
-
-    # === HUMAN PATH ===
-    # Move phase
-    while True:
-        print(f"\n{player}, choose a worker to move.")
-        for i, w in enumerate(workers):
-            moves = legal_moves(board, w.pos)
-            moves_notation = [coords_to_notation(m) for m in moves]
-            print(f"{i+1}: {w.id} at {coords_to_notation(w.pos)} can move to {moves_notation}")
-
-        choice = input("Select worker (A/B): ").strip().upper()
-        if choice not in ["A", "B"]:
-            print("Invalid worker choice. Must be A or B.")
-            continue
-        w = workers[ord(choice) - ord('A')]
-
-        moves = legal_moves(board, w.pos)
-        if not moves:
-            print("This worker has no legal moves.")
-            continue
-
-        move_str = input(f"Enter move destination (e.g., b2): ")
-        try:
-            dst = notation_to_coords(move_str)
-        except:
-            print("Invalid input format.")
-            continue
-
-        if dst not in moves:
-            print("Illegal move, try again.")
-            continue
-
-        old = w.pos
-        won = move_worker(board, w, dst)
-        if won:
-            print(f"{player} wins by moving {w.id} to {coords_to_notation(dst)}!")
-            notation.record_turn(old, dst)  # record move (build dummy)
-            return True, w, dst
-        break
-
-    # Build phase
-    while True:
-        builds = legal_builds(board, w.pos)
-        if not builds:
-            print("No legal build positions. Game over.")
-            return True, w, dst
-
-        build_str = input(f"Enter build destination (e.g., c3): ")
-        try:
-            bpos = notation_to_coords(build_str)
-        except:
-            print("Invalid input format.")
-            continue
-
-        if bpos not in builds:
-            print("Illegal build, try again.")
-            continue
-
-        build_block(board, w, bpos)
-        notation.record_turn(old, dst, bpos)
-        break
-
-    # Check if opponent has moves
-    if not player_has_moves(board, board.current_player):
-        print(f"{board.current_player} has no moves left! They lose.")
-        return True, w, dst
-
-    # Switch player
-    board.current_player = "P2" if player == "P1" else "P1"
-    return False, w, dst
-
 class GameController:
     def __init__(self,board:Board, players: Dict[str,Dict]):
         self.board = board
         self.players = players
-        self.current_player_id: str = "P1"
         for pid, cfg in self.players.items():
             if cfg["type"] =="AI" and cfg.get("agent") is None:
                 raise ValueError(f"Player {pid} is AI but no agent")
-            
+
     def is_ai_turn(self) -> bool:
-        return self.players[self.current_player_id]["type"] == "AI"
-    
+        return self.players[self.board.current_player]["type"] == "AI"
+
     def end_turn(self):
-        self.current_player_id = "P2" if self.current_player_id == "P1" else "P1"
+        self.board.current_player = "P2" if self.board.current_player == "P1" else "P1"
+        print(f"[DEBUG] end-turn called, switched to {self.board.current_player}")
 
     def legal_moves_for(self, worker):
         return legal_moves(self.board, worker.pos)
-    
+
     def legal_builds_for(self, worker):
         return legal_builds(self.board, worker.pos)
-    
+
     #from game.moves
     def apply_move(self, worker,dst:Tuple[int,int]) -> bool:
         if dst not in self.legal_moves_for(worker):
             return False
         won = move_worker(self.board, worker, dst)
         return (True,won)
-        
+
         move_worker(self.board, worker, dst)
         return True
-    
+
     def apply_build(self, worker, build_pos:Tuple[int,int]) -> bool:
         if build_pos not in self.legal_builds_for(worker):
             return False
         build_block(self.board, worker, build_pos)
         return True
-    
+
 #entry point ai to run on tkinter
     def run_ai_turn(self):
         if not self.is_ai_turn():
             return("skip",None,None)
-        
-        agent = self.players[self.current_player_id].get("agent")
+
+        agent = self.players[self.board.current_player].get("agent")
         worker, move_dst = agent.make_move(self.board)
         if worker is None or move_dst is None:
                   #no legal moves -> opponent wins
             self.end_turn()
             return ("no_moves",None,None)
-        
+
         self.apply_move(worker, move_dst)
         build_pos = agent.build(worker, self.board)
         if build_pos is not None:
             self.apply_build(worker, build_pos)
 
-            self.end_turn()
-            return ("moved", worker, (move_dst, build_pos))
+        self.end_turn()
+        return ("moved", worker, (move_dst, build_pos))
