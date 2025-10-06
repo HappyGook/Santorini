@@ -24,10 +24,7 @@ class Agent:
         ]
         return random.choice(empty_cells)
 
-    def setup_workers(self, board_state):
-        positions = []
-        while len(positions) < 2:
-            pos = self.decide_setup(board_state)
-            if pos not in positions:
-                positions.append(pos)
-        return positions
+    def setup_workers(self, board) -> list[tuple[int, int]]:
+        empties = [(r, c) for r in range(BOARD_SIZE) for c in range(BOARD_SIZE)
+               if board.grid[(r, c)].worker_id is None]
+        return empties[:2]

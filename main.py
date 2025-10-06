@@ -47,13 +47,13 @@ def main():
     mode = choose_mode_ui()
 
     board = Board([])
-    board.current_player = "P1"
+    # board.current_player = "P1"
 
-    # simple placement so both sides can move
-    place(board, "P1A", "P1", (0, 0))
-    place(board, "P1B", "P1", (0, 2))
-    place(board, "P2A", "P2", (4, 4))
-    place(board, "P2B", "P2", (4, 2))
+    # # simple placement so both sides can move
+    # place(board, "P1A", "P1", (0, 0))
+    # place(board, "P1B", "P1", (0, 2))
+    # place(board, "P2A", "P2", (4, 4))
+    # place(board, "P2B", "P2", (4, 2))
 
     players = build_players(mode)
     controller = GameController(board, players)
