@@ -1,64 +1,35 @@
 from ai.agent import Agent
 from game.board import Board
-from gui.notation import GameNotation
+from game.config import GameConfig
+from game.models import create_workers_for_game
 from gui.gameplay import GameController
-from gui.window import SantoriniTk, place, choose_mode_ui, build_players
+from gui.window import SantoriniTk, choose_mode_ui, build_players, place_workers_for_setup
 
-"""
-def main():
-    print("Welcome to Santorini CLI!")
-    board = Board()
-    notation = GameNotation()
-
-    mode = input("Choose mode: (1) Human vs Human, (2) Human vs AI, (3) AI vs AI: ").strip()
-
-    agents = {}
-    if mode == "2":
-        agents["P2"] = Agent("P2")
-    elif mode == "3":
-        agents["P1"] = Agent("P1")
-        agents["P2"] = Agent("P2")
-
-
-    # Setup phase
-    setup_workers(board, notation, agents)
-    render_board(board)
-
-    # Default starting player if not set
-    if not getattr(board, 'current_player', None):
-        board.current_player = "P1"
-
-    # Gameplay loop
-    while True:
-        game_over, worker, dst = play_turn(board, notation, ai_agents=agents)
-        render_board(board)
-
-        if game_over:
-            notation.save()
-            print("Game over!")
-            print("Final notation:")
-            print(notation)
-            break
-
-"""
 
 def main():
+    # Get game mode and number of players
+    mode_selection = choose_mode_ui()  # Returns dict with mode and num_players
 
-    mode = choose_mode_ui()
+    # Create game configuration
+    game_config = GameConfig(num_players=mode_selection["num_players"])
 
-    board = Board([])
-    # board.current_player = "P1"
+    # Create workers based on game configuration
+    workers = create_workers_for_game(game_config)
 
-    # # simple placement so both sides can move
-    # place(board, "P1A", "P1", (0, 0))
-    # place(board, "P1B", "P1", (0, 2))
-    # place(board, "P2A", "P2", (4, 4))
-    # place(board, "P2B", "P2", (4, 2))
+    # Create board with configuration
+    board = Board(game_config, workers)
 
-    players = build_players(mode)
-    controller = GameController(board, players)
+    # Place workers in starting positions
+    place_workers_for_setup(board, game_config)
 
-    app = SantoriniTk(board, controller)
+    # Build player configuration
+    players = build_players(mode_selection, game_config)
+
+    # Create game controller
+    controller = GameController(board, players, game_config)
+
+    # Start GUI
+    app = SantoriniTk(board, controller, game_config)
     app.mainloop()
 
 

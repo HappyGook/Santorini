@@ -3,25 +3,36 @@ from typing import Tuple, Dict, Literal
 from game.board import Board
 from game.moves import move_worker, build_block
 from game.rules import legal_moves, legal_builds
+from game.config import GameConfig
 
 
 ActorType = Literal["HUMAN", "AI"]
 Coord = Tuple[int, int]
 
 class GameController:
-    def __init__(self,board:Board, players: Dict[str,Dict]):
+    def __init__(self,board:Board, players: Dict[str,Dict], game_config:GameConfig):
         self.board = board
         self.players = players
+        self.game_config = game_config
+
+        # Validate that players dict matches game config
+        expected_players = set(game_config.player_ids)
+        actual_players = set(players.keys())
+        if expected_players != actual_players:
+            raise ValueError(f"Player config mismatch. Expected {expected_players}, got {actual_players}")
+
         for pid, cfg in self.players.items():
-            if cfg["type"] =="AI" and cfg.get("agent") is None:
+            if cfg["type"] == "AI" and cfg.get("agent") is None:
                 raise ValueError(f"Player {pid} is AI but no agent")
 
     def is_ai_turn(self) -> bool:
         return self.players[self.board.current_player]["type"] == "AI"
 
     def end_turn(self):
-        self.board.current_player = "P2" if self.board.current_player == "P1" else "P1"
-        print(f"[DEBUG] end-turn called, switched to {self.board.current_player}")
+        """turn change from board module"""
+        old_player = self.board.current_player
+        self.board.next_turn()
+        print(f"[DEBUG] end-turn called, switched from {old_player} to {self.board.current_player}")
 
     def legal_moves_for(self, worker):
         return legal_moves(self.board, worker.pos)
