@@ -10,7 +10,8 @@ class Agent:
         self.phrases=[...]
 
     def decide_action(self, board_state):
-        _, action = minimax(board_state, depth=3, player_id=self.player_id, max_player_id=self.player_id)
+        player_index = board_state.game_config.get_player_index(self.player_id)
+        _, action = minimax(board_state, depth=3, player_index=player_index, max_player_index=player_index)
         if action is None:
             return None, None, None
         return action

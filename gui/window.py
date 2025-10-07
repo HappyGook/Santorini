@@ -1,6 +1,9 @@
 import tkinter as tk
 from tkinter import ttk
+from typing import Dict, Any
+
 from game.board import Board
+from game.config import GameConfig
 from game.models import BOARD_SIZE, Worker
 from gui.notation import coords_to_notation
 from ai.agent import Agent
@@ -14,70 +17,178 @@ COLOR_MOVE = "lightblue"
 COLOR_BUILD = "Orange"
 COLOR_SELECTED = "lightgreen"
 
-def place(board, worker_id: str, owner: str, pos: tuple[int, int]) -> bool: # create and place worker on board
-  
-    if pos not in board.grid:
-        return False
-    
-    cell = board.grid[pos]
+PLAYER_COLORS = {
+    "P1": "#FF6B6B",    # Red
+    "P2": "#4ECDC4",    # Teal
+    "P3": "#45B7D1",    # Blue
+}
 
-    if cell.worker_id is not None:
+def place(board, worker_id: str, owner: str, pos: tuple[int, int]) -> bool:
+    """Create and place worker on board"""
+    try:
+        w = Worker(id=worker_id, owner=owner, pos=pos)
+        board.workers.append(w)
+        board.grid[pos].worker_id = worker_id
+        return True
+    except Exception as e:
+        print(f"Error placing worker {worker_id}: {e}")
         return False
-    
-    owner_count = sum(1 for w in board.workers if w.owner == owner)
-    if owner_count >= 2:
-        return False
-    
 
-    w = Worker(id=worker_id, owner=owner, pos=pos)
-    board.workers.append(w)
-    cell.worker_id = worker_id
-    return True
+def place_workers_for_setup(board: Board, game_config: GameConfig) -> None:
+    """Place workers in starting positions based on number of players"""
+    if game_config.num_players == 2:
+        # 2-player starting positions
+        positions = [
+            ("P1A", "P1", (0, 0)), ("P1B", "P1", (0, 2)),
+            ("P2A", "P2", (4, 4)), ("P2B", "P2", (4, 2))
+        ]
+    elif game_config.num_players == 3:
+        # 3-player starting positions (spread around board)
+        positions = [
+            ("P1A", "P1", (0, 0)), ("P1B", "P1", (0, 1)),
+            ("P2A", "P2", (4, 3)), ("P2B", "P2", (4, 4)),
+            ("P3A", "P3", (2, 2)), ("P3B", "P3", (1, 3))
+        ]
+    else:
+        return  # Unsupported number of players
+
+    for worker_id, owner, pos in positions:
+        # Find the worker object and set its position
+        worker = next((w for w in board.workers if w.id == worker_id), None)
+        if worker:
+            worker.pos = pos
+            board.grid[pos].worker_id = worker_id
+
+
+def choose_mode_ui() -> Dict[str, Any]:
+    """Enhanced mode selection with 2-player and 3-player options"""
+    root = tk.Tk()
+    root.title("Choose Game Mode")
+    root.geometry("400x300")
+    root.resizable(False, False)
+
+    # Number of players selection
+    ttk.Label(root, text="Number of Players:", padding=10, font=("Arial", 12, "bold")).pack(anchor="w")
+
+    players_var = tk.StringVar(value="2")
+    player_frame = ttk.Frame(root)
+    player_frame.pack(anchor="w", padx=20)
+
+    ttk.Radiobutton(player_frame, text="2 Players", variable=players_var, value="2", padding=5).pack(anchor="w")
+    ttk.Radiobutton(player_frame, text="3 Players", variable=players_var, value="3", padding=5).pack(anchor="w")
+
+    # Game mode selection
+    ttk.Label(root, text="Game Mode:", padding=10, font=("Arial", 12, "bold")).pack(anchor="w")
+
+    mode_var = tk.StringVar(value="pvai")
+    mode_frame = ttk.Frame(root)
+    mode_frame.pack(anchor="w", padx=20)
+
+    ttk.Radiobutton(mode_frame, text="Human vs Human", variable=mode_var, value="pvp", padding=5).pack(anchor="w")
+    ttk.Radiobutton(mode_frame, text="Human vs AI", variable=mode_var, value="pvai", padding=5).pack(anchor="w")
+    ttk.Radiobutton(mode_frame, text="AI vs AI", variable=mode_var, value="aivai", padding=5).pack(anchor="w")
+
+    selected = {"val": None}
+
+    def start():
+        num_players = int(players_var.get())
+        mode = mode_var.get()
+
+        selected["val"] = {
+            "num_players": num_players,
+            "mode": mode
+        }
+        root.destroy()
+
+    ttk.Button(root, text="Start Game", command=start, padding=10).pack(pady=20)
+
+    root.mainloop()
+    return selected["val"]
+
+
+def build_players(mode_selection: Dict[str, Any], game_config: GameConfig) -> Dict[str, Dict]:
+    """Build player configuration based on selected mode and game config"""
+    mode = mode_selection["mode"]
+    num_players = game_config.num_players
+
+    players = {}
+
+    if mode == "pvp":
+        # All human players
+        for i in range(num_players):
+            player_id = game_config.get_player_id(i)
+            players[player_id] = {"type": "HUMAN", "agent": None}
+
+    elif mode == "pvai":
+        # First player human, rest AI
+        for i in range(num_players):
+            player_id = game_config.get_player_id(i)
+            if i == 0:
+                players[player_id] = {"type": "HUMAN", "agent": None}
+            else:
+                players[player_id] = {"type": "AI", "agent": Agent(player_id)}
+
+    elif mode == "aivai":
+        # All AI players
+        for i in range(num_players):
+            player_id = game_config.get_player_id(i)
+            players[player_id] = {"type": "AI", "agent": Agent(player_id)}
+
+    return players
 
 class SantoriniTk(tk.Tk):
-    def __init__(self, board: Board, controller: GameController):
+    def __init__(self, board: Board, controller: GameController, game_config: GameConfig):
         super().__init__()
         self.title("Santorini")
         self.board = board
         self.game_over = False
         self.controller = controller
+        self.game_config = game_config
 
         w = h = MARGIN * 2 + CELL * BOARD_SIZE
         self.canvas = tk.Canvas(self, width=w, height=h, bg="white")
         self.canvas.pack()
 
-        self.status = tk.Label(self , text ="Board view", anchor = "w")
-        self.status.pack(fill = "x")
+        # Status and player info frame
+        info_frame = tk.Frame(self)
+        info_frame.pack(fill="x")
 
-        
+        self.status = tk.Label(info_frame, text="Board view", anchor="w")
+        self.status.pack(fill="x")
+
+        # Player turn indicator
+        self.player_info_frame = tk.Frame(info_frame)
+        self.player_info_frame.pack(fill="x", pady=5)
+
+        self.create_player_indicators()
+
         #ui for interaction
 
-        self.phase = "setup"          # <-- start in setup
-        self.setup_label = "A"        # <-- placing A then B for the current player
+        self.phase = "setup"
         self.selected_worker = None
         self.src = None
         self.legal = []
+        self.setup_label = "A"
 
         self.canvas.bind("<Button-1>", self.on_click)
         self.bind("<Escape>", lambda e: self.on_escape())
 
         self.draw()
 
-        # If the game starts with an AI (AI vs AI or AI vs P2)off the loop:
-        if self.controller.is_ai_turn() and self.phase == "setup":
-            self.after(50, self.ai_setup)   # pass the function, don't call it
-  
+        # Start the setup phase immediately
+        self.after(50, self.setup_workers)
+
 
     def ai_setup(self):
         if not self.controller.is_ai_turn():
             return None
-        
+
         pid = getattr(self.board, 'current_player', 'P1')
         agent = self.controller.players[pid]["agent"]
 
         have = sum(1 for w in self.board.workers if w.owner == pid)
         if have >= 2:
-            self.setup_workers() 
+            self.setup_workers()
             return
 
         label = "A" if have == 0 else "B"
@@ -85,32 +196,42 @@ class SantoriniTk(tk.Tk):
 
         pos = next((p for p in candidates if self.cell_empty(*p)), None)
         if pos is None:
-
             empties = [(r, c) for r in range(BOARD_SIZE) for c in range(BOARD_SIZE) if self.cell_empty(r, c)]
             if not empties:
                 return
             pos = empties[0]
 
         wid = f"{pid}{label}"
-        placed =place(self.board, wid, pid, pos)
+        placed = place(self.board, wid, pid, pos)
 
-        if placed: 
-            self.draw(f"{pid}: workers placed")
-
+        if placed:
+            self.draw(f"{pid}: placed {wid} at {coords_to_notation(pos)}")
         else:
-            self.setup_workers() #next setup or start game
+            self.setup_workers()
+            return
 
-        self.setup_workers() #next setup or start game
+        self.setup_workers()
 
 
     def cell_empty(self, r:int, c:int) -> bool: #check if cell is empty
         return self.board.grid[(r,c)].worker_id is None
-    
-    def setup_workers(self):
-        pid = self.board.current_player
-        have = sum(1 for w in self.board.workers if w.owner == pid)
 
-    # If this player hasn't placed 2 yet, stay on this player
+    def setup_workers(self):
+        # Determine if all players have placed their workers
+        all_players = [self.game_config.get_player_id(i) for i in range(self.game_config.num_players)]
+        placed = {pid: sum(1 for w in self.board.workers if w.owner == pid) for pid in all_players}
+        all_done = all(placed[pid] == 2 for pid in all_players)
+
+        if all_done:
+            self.phase = "select_Worker"
+            self.draw(f"{self.board.current_player}: select worker")
+            if self.controller.is_ai_turn() and not self.game_over:
+                self.after(50, self.ai_pump)
+            return
+
+        # Find next player who still needs to place a worker
+        pid = self.board.current_player
+        have = placed[pid]
         if have < 2:
             self.setup_label = "A" if have == 0 else "B"
             msg = "place worker A" if have == 0 else "place second worker (B)"
@@ -119,27 +240,88 @@ class SantoriniTk(tk.Tk):
                 self.after(50, self.ai_setup)   # schedule AI to place ONE worker
             return
 
-    # This player now has 2 -> switch to the other player
+        # This player is done, move to next player needing placement
         self.controller.end_turn()
-        pid = self.board.current_player
+        self.setup_workers()
 
-    # If both sides are fully placed, start the game
-        p1_done = sum(1 for w in self.board.workers if w.owner == "P1") == 2
-        p2_done = sum(1 for w in self.board.workers if w.owner == "P2") == 2
-           
-        if p1_done and p2_done:
-            self.phase = "select_Worker"
-            self.draw(f"{pid}: select worker")
-            if self.controller.is_ai_turn():
-                self.after(50, self.ai_pump)
-                return
+    def create_player_indicators(self):
+        """Create visual indicators for all players"""
+        self.player_labels = {}
 
-        have_next = sum(1 for w in self.board.workers if w.owner == pid)
-        self.setup_label = "A" if have_next == 0 else "B"
-        self.draw(f"{pid}: place worker {self.setup_label}")
-        if self.controller.is_ai_turn():
-            self.after(50, self.ai_setup)
- 
+        for i in range(self.game_config.num_players):
+            player_id = self.game_config.get_player_id(i)
+
+            frame = tk.Frame(self.player_info_frame, relief="raised", borderwidth=2)
+            frame.pack(side="left", padx=5, pady=2)
+
+            color = PLAYER_COLORS.get(player_id, "gray")
+
+            # Player color indicator
+            color_label = tk.Label(frame, text="●", fg=color, font=("Arial", 20))
+            color_label.pack(side="left")
+
+            # Player info
+            player_type = self.controller.players[player_id]["type"]
+            text = f"{player_id} ({player_type})"
+            label = tk.Label(frame, text=text, font=("Arial", 10))
+            label.pack(side="left", padx=(5, 10))
+
+            self.player_labels[player_id] = frame
+
+    def update_current_player_display(self):
+        """Highlight current player in the indicator"""
+        for player_id, frame in self.player_labels.items():
+            if player_id == self.board.current_player:
+                frame.config(bg="yellow", relief="raised", borderwidth=3)
+            else:
+                frame.config(bg="SystemButtonFace", relief="raised", borderwidth=1)
+
+    def _draw_cells(self):
+        """Enhanced cell drawing with player colors"""
+        for r in range(BOARD_SIZE):
+            for c in range(BOARD_SIZE):
+                cell = self.board.grid[(r, c)]
+                x1, y1, x2, y2 = self._rc_to_xy(r, c)
+
+                # Draw height
+                self.canvas.create_text((x1+x2)//2, y1 + 14, text=str(cell.height),
+                                      font=("Arial", 12, "bold"))
+
+                # Draw worker with player color
+                if cell.worker_id is not None:
+                    worker = next((w for w in self.board.workers if w.id == cell.worker_id), None)
+                    if worker:
+                        color = PLAYER_COLORS.get(worker.owner, "black")
+                        self.canvas.create_text((x1+x2)//2, (y1+y2)//2,
+                                              text=cell.worker_id,
+                                              font=("Arial", 10, "bold"),
+                                              fill=color)
+
+    def draw(self, banner: str | None = None):
+        """Enhanced draw with player turn indicator"""
+        self.canvas.delete("all")
+        self._draw_grid()
+        self._draw_cells()
+
+        if self.selected_worker and self.src:
+            self.highlight_selected()
+
+        if self.legal:
+            color = COLOR_MOVE if self.phase == "select_dst" else COLOR_BUILD
+            self.highlight(self.legal, outline=color)
+
+        # Update player display
+        self.update_current_player_display()
+
+        # Update status
+        phase_text = self.phase.replace("_", " ")
+        who = self.board.current_player
+        player_type = self.controller.players[who]["type"]
+
+        if banner:
+            self.status.config(text=banner)
+        else:
+            self.status.config(text=f"{who} ({player_type}): {phase_text}")
 
     def click_to_rc(self, event): #convert click to row/col
 
@@ -201,24 +383,6 @@ class SantoriniTk(tk.Tk):
                 if cell.worker_id is not None:
                     self.canvas.create_text((x1+x2)//2, (y1+y2)//2, text = cell.worker_id, font = ("Arial", 11))
 
-    def draw(self, banner:str | None = None):
-        self.canvas.delete("all")
-        self._draw_grid()
-        self._draw_cells()
-
-        if self.selected_worker and self.src:
-            self.highlight_selected()
-
-        if self.legal:
-            color = COLOR_MOVE if self.phase == "select_dst" else COLOR_BUILD
-            self.highlight(self.legal, outline = color)
-    
-    # Update status turn
-
-        phase_text =self.phase.replace("_"," ")
-        who = self.board.current_player
-        self.status.config(text=banner or f"{who}: {phase_text}")
-
     def on_click(self, event): #handle click
 
         if self.game_over or self.controller.is_ai_turn():# ignore clicks during AI turn or after game end
@@ -226,7 +390,7 @@ class SantoriniTk(tk.Tk):
         rc = self.click_to_rc(event)
         if rc is None:
             return
-        
+
         player = self.board.current_player
 
         if self.phase == "setup":
@@ -248,7 +412,7 @@ class SantoriniTk(tk.Tk):
 
             self.draw(f"{player}: placed {wid} at {coords_to_notation(rc)}")
 
-    
+
             self.setup_workers()
             return
 
@@ -409,40 +573,3 @@ class SantoriniTk(tk.Tk):
             self.src = None
             self.legal = []
             self.draw("Selection cleared")
-
-def choose_mode_ui()-> str: #gamemode
-    root = tk.Tk()
-    root.title  ("Choose Game Mode")
-    root.geometry("300x200")
-    root.resizable(False, False)
-
-    mode_var = tk.StringVar(value="pvai")
-
-    ttk.Label(root, text= "Select Game Mode:", padding =10).pack(anchor="w")
-    ttk.Radiobutton(root, text="Human vs Human", variable=mode_var, value="pvp", padding=10).pack(anchor="w")
-    ttk.Radiobutton(root, text="Human vs AI", variable=mode_var, value="pvai", padding=10).pack(anchor="w")
-    ttk.Radiobutton(root, text="AI vs AI", variable=mode_var, value="aivai", padding=10).pack(anchor="w")
-
-    selected = {"val": None}
-    def start():
-
-        selected["val"] = mode_var.get()
-        root.destroy()
-
-    ttk.Button(root, text="Start Game", command=start, padding=10).pack(anchor="center", pady=20)
-    root.mainloop()
-    return selected["val"]
-
-def build_players(mode:str):
-
-    if mode =="pvp":
-        return { "P1": {"type": "HUMAN", "agent": None},
-                 "P2": {"type": "HUMAN", "agent": None}}
-
-    if mode == "pvai":
-        return { "P1": {"type": "HUMAN", "agent": None},
-                 "P2": {"type": "AI", "agent": Agent(player_id="P2")}}
-    if mode == "aivai":
-        return { "P1": {"type": "AI", "agent": Agent(player_id="P1")},
-                 "P2": {"type": "AI", "agent": Agent(player_id="P2")}}
-    raise ValueError(f"Unknown mode {mode}")

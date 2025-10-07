@@ -1,14 +1,25 @@
 import copy
 from typing import Dict, List, Optional
+from game.config import GameConfig
 from game.models import Cell, Coord, BOARD_SIZE, Worker
 
 class Board:
-    def __init__(self, workers: Optional[ List[Worker]] = None) -> None:
+    def __init__(self, game_config: GameConfig, workers: Optional[List[Worker]] = None) -> None:
         self.grid: Dict[Coord, Cell] = {
             (r, c): Cell() for r in range(BOARD_SIZE) for c in range(BOARD_SIZE)
         }
         self.workers: List[Worker] = workers or []
-        self.current_player: str = "P1"
+        self.game_config = game_config
+        self.current_player_index: int = 0
+
+    @property
+    def current_player(self) -> str:
+        """Get current player ID string for backward compatibility"""
+        return self.game_config.get_player_id(self.current_player_index)
+
+    def next_turn(self) -> None:
+        """Go to next player with modulo rotation"""
+        self.current_player_index = self.game_config.next_player_index(self.current_player_index)
 
     def in_bounds(self, pos: Coord) -> bool:
         """Return True if pos on the board."""
