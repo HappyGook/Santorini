@@ -164,11 +164,6 @@ class SantoriniTk(tk.Tk):
 
         #ui for interaction
 
-        self.phase = "setup"          # <-- start in setup
-        self.setup_label = "A"        # <-- placing A then B for the current player
-        self.selected_worker = None
-        self.src = None
-        self.legal = []
         self.phase = "select_Worker"
         self.selected_worker = None
         self.src = None
@@ -331,12 +326,6 @@ class SantoriniTk(tk.Tk):
             self.status.config(text=banner)
         else:
             self.status.config(text=f"{who} ({player_type}): {phase_text}")
-        have_next = sum(1 for w in self.board.workers if w.owner == pid)
-        self.setup_label = "A" if have_next == 0 else "B"
-        self.draw(f"{pid}: place worker {self.setup_label}")
-        if self.controller.is_ai_turn():
-            self.after(50, self.ai_setup)
-
 
     def click_to_rc(self, event): #convert click to row/col
 
@@ -588,40 +577,3 @@ class SantoriniTk(tk.Tk):
             self.src = None
             self.legal = []
             self.draw("Selection cleared")
-
-def choose_mode_ui()-> str: #gamemode
-    root = tk.Tk()
-    root.title  ("Choose Game Mode")
-    root.geometry("300x200")
-    root.resizable(False, False)
-
-    mode_var = tk.StringVar(value="pvai")
-
-    ttk.Label(root, text= "Select Game Mode:", padding =10).pack(anchor="w")
-    ttk.Radiobutton(root, text="Human vs Human", variable=mode_var, value="pvp", padding=10).pack(anchor="w")
-    ttk.Radiobutton(root, text="Human vs AI", variable=mode_var, value="pvai", padding=10).pack(anchor="w")
-    ttk.Radiobutton(root, text="AI vs AI", variable=mode_var, value="aivai", padding=10).pack(anchor="w")
-
-    selected = {"val": None}
-    def start():
-
-        selected["val"] = mode_var.get()
-        root.destroy()
-
-    ttk.Button(root, text="Start Game", command=start, padding=10).pack(anchor="center", pady=20)
-    root.mainloop()
-    return selected["val"]
-
-def build_players(mode:str):
-
-    if mode =="pvp":
-        return { "P1": {"type": "HUMAN", "agent": None},
-                 "P2": {"type": "HUMAN", "agent": None}}
-
-    if mode == "pvai":
-        return { "P1": {"type": "HUMAN", "agent": None},
-                 "P2": {"type": "AI", "agent": Agent(player_id="P2")}}
-    if mode == "aivai":
-        return { "P1": {"type": "AI", "agent": Agent(player_id="P1")},
-                 "P2": {"type": "AI", "agent": Agent(player_id="P2")}}
-    raise ValueError(f"Unknown mode {mode}")
