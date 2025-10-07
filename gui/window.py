@@ -164,22 +164,19 @@ class SantoriniTk(tk.Tk):
 
         #ui for interaction
 
-        self.phase = "select_Worker"
+        self.phase = "setup"
         self.selected_worker = None
         self.src = None
         self.legal = []
+        self.setup_label = "A"
 
         self.canvas.bind("<Button-1>", self.on_click)
         self.bind("<Escape>", lambda e: self.on_escape())
 
         self.draw()
 
-        # Start AI if needed
-        if self.controller.is_ai_turn():
-            self.after(50, self.ai_pump)
-        # If the game starts with an AI (AI vs AI or AI vs P2)off the loop:
-        if self.controller.is_ai_turn() and self.phase == "setup":
-            self.after(50, self.ai_setup)   # pass the function, don't call it
+        # Start the setup phase immediately
+        self.after(50, self.setup_workers)
 
 
     def ai_setup(self):
@@ -199,32 +196,42 @@ class SantoriniTk(tk.Tk):
 
         pos = next((p for p in candidates if self.cell_empty(*p)), None)
         if pos is None:
-
             empties = [(r, c) for r in range(BOARD_SIZE) for c in range(BOARD_SIZE) if self.cell_empty(r, c)]
             if not empties:
                 return
             pos = empties[0]
 
         wid = f"{pid}{label}"
-        placed =place(self.board, wid, pid, pos)
+        placed = place(self.board, wid, pid, pos)
 
         if placed:
-            self.draw(f"{pid}: workers placed")
-
+            self.draw(f"{pid}: placed {wid} at {coords_to_notation(pos)}")
         else:
-            self.setup_workers() #next setup or start game
+            self.setup_workers()
+            return
 
-        self.setup_workers() #next setup or start game
+        self.setup_workers()
 
 
     def cell_empty(self, r:int, c:int) -> bool: #check if cell is empty
         return self.board.grid[(r,c)].worker_id is None
 
     def setup_workers(self):
-        pid = self.board.current_player
-        have = sum(1 for w in self.board.workers if w.owner == pid)
+        # Determine if all players have placed their workers
+        all_players = [self.game_config.get_player_id(i) for i in range(self.game_config.num_players)]
+        placed = {pid: sum(1 for w in self.board.workers if w.owner == pid) for pid in all_players}
+        all_done = all(placed[pid] == 2 for pid in all_players)
 
-    # If this player hasn't placed 2 yet, stay on this player
+        if all_done:
+            self.phase = "select_Worker"
+            self.draw(f"{self.board.current_player}: select worker")
+            if self.controller.is_ai_turn() and not self.game_over:
+                self.after(50, self.ai_pump)
+            return
+
+        # Find next player who still needs to place a worker
+        pid = self.board.current_player
+        have = placed[pid]
         if have < 2:
             self.setup_label = "A" if have == 0 else "B"
             msg = "place worker A" if have == 0 else "place second worker (B)"
@@ -233,20 +240,9 @@ class SantoriniTk(tk.Tk):
                 self.after(50, self.ai_setup)   # schedule AI to place ONE worker
             return
 
-    # This player now has 2 -> switch to the other player
+        # This player is done, move to next player needing placement
         self.controller.end_turn()
-        pid = self.board.current_player
-
-    # If both sides are fully placed, start the game
-        p1_done = sum(1 for w in self.board.workers if w.owner == "P1") == 2
-        p2_done = sum(1 for w in self.board.workers if w.owner == "P2") == 2
-
-        if p1_done and p2_done:
-            self.phase = "select_Worker"
-            self.draw(f"{pid}: select worker")
-            if self.controller.is_ai_turn():
-                self.after(50, self.ai_pump)
-                return
+        self.setup_workers()
 
     def create_player_indicators(self):
         """Create visual indicators for all players"""
