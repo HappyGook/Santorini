@@ -8,7 +8,8 @@ from game.models import BOARD_SIZE, Worker
 from gui.notation import coords_to_notation
 from ai.agent import Agent
 from gui.gameplay import GameController
-
+from PIL import Image, ImageTk
+from pathlib import Path
 
 CELL = 80 #pixels per cell
 MARGIN = 20 #padding
@@ -148,6 +149,7 @@ class SantoriniTk(tk.Tk):
         w = h = MARGIN * 2 + CELL * BOARD_SIZE
         self.canvas = tk.Canvas(self, width=w, height=h, bg="white")
         self.canvas.pack()
+        self.load_images()
 
         # Status and player info frame
         info_frame = tk.Frame(self)
@@ -178,6 +180,41 @@ class SantoriniTk(tk.Tk):
         # Start the setup phase immediately
         self.after(50, self.setup_workers)
 
+    def load_images(self):
+        #Load & cache all tiles/workers, resized to CELL size
+        base = Path(__file__).resolve().parent / "assets"
+        tiles_dir = base / "tiles"
+        workers_dir = base / "workers"
+    
+        tiles ={
+            0:"level0.png",
+            1:"level1.png",
+            2:"level2.png",
+            3:"level3.png",
+            4:"level4.png"
+        }
+        self.tiles = {}
+        for h, name in tiles.items():
+            p = tiles_dir / name
+            if p.exists():
+                img = Image.open(p).convert("RGBA").resize((CELL, CELL), Image.NEAREST)
+                self.tiles[h] = ImageTk.PhotoImage(img)
+            else:
+                self.tiles[h] = None
+
+        ### worker
+        self.worker_img ={}
+        for pid in ["P1","P2","P3"]:
+            p = base / "workers"/f"{pid}.png"
+            if p.exists():
+                #worker abit smaller than cell
+                w = int(CELL * 0.75)
+                img = Image.open(p).convert("RGBA").resize((w, w), Image.LANCZOS)
+                self.worker_img[pid] = ImageTk.PhotoImage(img)
+            else:
+                self.worker_img[pid] = None
+
+
 
     def ai_setup(self):
         if not self.controller.is_ai_turn():
@@ -193,6 +230,7 @@ class SantoriniTk(tk.Tk):
 
         label = "A" if have == 0 else "B"
         candidates = agent.setup_workers(self.board)
+
 
         pos = next((p for p in candidates if self.cell_empty(*p)), None)
         if pos is None:
@@ -276,6 +314,46 @@ class SantoriniTk(tk.Tk):
             else:
                 frame.config(bg="SystemButtonFace", relief="raised", borderwidth=1)
 
+    def cell_box(self, r:int, c:int):
+        x1 = MARGIN + c * CELL
+        y1 = MARGIN + r * CELL
+        x2 = x1 + CELL
+        y2 = y1 + CELL
+        return x1, y1, x2, y2 
+        
+    def cell_center(self, r:int, c:int):
+        x1, y1, x2, y2 = self.cell_box(r, c)
+        return (x1 + x2) // 2, (y1 + y2) // 2       
+    
+    def draw_tiles(self):
+        for r in range(BOARD_SIZE):
+            for c in range(BOARD_SIZE):
+                cell = self.board.grid[(r, c)]
+                x1, y1, x2, y2 = self._rc_to_xy(r, c)
+
+                h= max(0, min(4, cell.height))
+                img= self.tiles.get(h)
+                if img is not None:
+                    self.canvas.create_image(x1, y1, image=img, anchor="nw", tags=("tile",))
+                else:
+               
+                    self.canvas.create_rectangle(x1, y1, x2, y2, fill="#ddd", outline="")
+    def draw_workers(self):
+        for w in self.board.workers:
+            r, c = w.pos
+            cx,cy = self.cell_center(r,c)
+
+            if self.board.grid[(r,c)].worker_id == w.id:
+                sprite = self.worker_img.get(w.owner)
+                if sprite:
+                    self.canvas.create_image(cx, cy, image=sprite, anchor="center", tags=("worker",))
+                else:
+                #  text if no PNG exists
+                    color = PLAYER_COLORS.get(w.owner, "black")
+                    self.canvas.create_text(cx, cy, text=w.id, font=("Arial", 11, "bold"), fill=color)
+
+### might delete later uf upgrade erfolgreich
+    
     def _draw_cells(self):
         """Enhanced cell drawing with player colors"""
         for r in range(BOARD_SIZE):
@@ -301,7 +379,8 @@ class SantoriniTk(tk.Tk):
         """Enhanced draw with player turn indicator"""
         self.canvas.delete("all")
         self._draw_grid()
-        self._draw_cells()
+        self.draw_tiles()
+        self.draw_workers()
 
         if self.selected_worker and self.src:
             self.highlight_selected()
@@ -309,6 +388,7 @@ class SantoriniTk(tk.Tk):
         if self.legal:
             color = COLOR_MOVE if self.phase == "select_dst" else COLOR_BUILD
             self.highlight(self.legal, outline=color)
+
 
         # Update player display
         self.update_current_player_display()

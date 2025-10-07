@@ -1,4 +1,23 @@
+# Byte-compiled / cache
 __pycache__/
 *.py[cod]
 *$py.class
- 
+.pytest_cache/
+
+# Virtual envs
+.venv/
+venv/
+env/
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+
+# Build / dist
+build/
+dist/
+*.egg-info/
