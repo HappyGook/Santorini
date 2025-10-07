@@ -208,7 +208,7 @@ class SantoriniTk(tk.Tk):
             p = base / "workers"/f"{pid}.png"
             if p.exists():
                 #worker abit smaller than cell
-                w = int(CELL * 0.75)
+                w = int(CELL * 0.5)
                 img = Image.open(p).convert("RGBA").resize((w, w), Image.LANCZOS)
                 self.worker_img[pid] = ImageTk.PhotoImage(img)
             else:
