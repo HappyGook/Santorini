@@ -21,7 +21,7 @@ COLOR_SELECTED = "lightgreen"
 PLAYER_COLORS = {
     "P1": "#FF6B6B",    # Red
     "P2": "#4ECDC4",    # Teal
-    "P3": "#45B7D1",    # Blue
+    "P3": "#FFF200",    # Blue
 }
 
 def place(board, worker_id: str, owner: str, pos: tuple[int, int]) -> bool:
