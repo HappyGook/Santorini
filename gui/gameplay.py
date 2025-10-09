@@ -6,6 +6,7 @@ from game.rules import legal_moves, legal_builds
 from game.config import GameConfig
 
 
+
 ActorType = Literal["HUMAN", "AI"]
 Coord = Tuple[int, int]
 

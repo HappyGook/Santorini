@@ -10,30 +10,10 @@ from ai.agent import Agent
 from gui.gameplay import GameController
 from PIL import Image, ImageTk
 from pathlib import Path
+from game.config import CELL, MARGIN, COLOR_MOVE, COLOR_BUILD, COLOR_SELECTED, PLAYER_COLORS, PLAYER_IMAGES
+from game.moves import place_worker
 
-CELL = 80 #pixels per cell
-MARGIN = 20 #padding
 
-COLOR_MOVE = "lightblue"
-COLOR_BUILD = "Orange"
-COLOR_SELECTED = "lightgreen"
-
-PLAYER_COLORS = {
-    "P1": "#FF6B6B",    # Red
-    "P2": "#4ECDC4",    # Teal
-    "P3": "#FFF200",    # Blue
-}
-
-def place(board, worker_id: str, owner: str, pos: tuple[int, int]) -> bool:
-    """Create and place worker on board"""
-    try:
-        w = Worker(id=worker_id, owner=owner, pos=pos)
-        board.workers.append(w)
-        board.grid[pos].worker_id = worker_id
-        return True
-    except Exception as e:
-        print(f"Error placing worker {worker_id}: {e}")
-        return False
 
 def place_workers_for_setup(board: Board, game_config: GameConfig) -> None:
     """Place workers in starting positions based on number of players"""
@@ -155,6 +135,7 @@ class SantoriniTk(tk.Tk):
         info_frame = tk.Frame(self)
         info_frame.pack(fill="x")
 
+        
         self.status = tk.Label(info_frame, text="Board view", anchor="w")
         self.status.pack(fill="x")
 
@@ -240,7 +221,7 @@ class SantoriniTk(tk.Tk):
             pos = empties[0]
 
         wid = f"{pid}{label}"
-        placed = place(self.board, wid, pid, pos)
+        placed = place_worker(self.board, wid, pid, pos)
 
         if placed:
             self.draw(f"{pid}: placed {wid} at {coords_to_notation(pos)}")
@@ -485,7 +466,7 @@ class SantoriniTk(tk.Tk):
 
     # place worker A or B for the current (human) player
             wid = f"{player}{self.setup_label}"
-            ok = place(self.board, wid, player, rc)
+            ok = place_worker(self.board, wid, player, rc)
             if not ok:
                 self.draw(f"{player}: invalid placement")
                 return

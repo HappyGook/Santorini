@@ -1,7 +1,32 @@
 from typing import List
 from dataclasses import dataclass
+from pathlib import Path
 
+# === Layout ===
+CELL = 80          # pixels per cell
+MARGIN = 20        # outer padding
 
+# === Colors ===
+COLOR_MOVE = "lightblue"
+COLOR_BUILD = "orange"
+COLOR_SELECTED = "lightgreen"
+
+PLAYER_COLORS = {
+    "P1": "#FF6B6B",   # Red
+    "P2": "#4ECDC4",   # Teal
+    "P3": "#45B7D1",   # Blue
+}
+
+# === Asset Paths ===
+ASSETS_DIR = Path(__file__).parent / "assets"
+PLAYER_IMAGES = {
+    "P1": ASSETS_DIR / "player_p1.png",
+    "P2": ASSETS_DIR / "player_p2.png",
+    "P3": ASSETS_DIR / "player_p3.png",
+}
+TILE_IMAGE = ASSETS_DIR / "tile.png"
+
+MAX_WORKERS_PER_PLAYER = 2
 @dataclass
 class GameConfig:
     num_players: int
