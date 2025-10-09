@@ -10,6 +10,7 @@ class Agent:
         self.player_id = player_id
         self.depth = depth
         self.phrases=[...]
+        self.rng = random.Random()
 
     def decide_action(self, board_state):
 
@@ -31,16 +32,19 @@ class Agent:
     
     def decide_setup(self, board_state):
         empty_cells = [
-            (x, y)
-            for x in range(BOARD_SIZE)
-            for y in range(BOARD_SIZE)
-            if board_state.get_cell((x, y)).worker_id is None
+            (r, c)
+            for r in range(BOARD_SIZE)
+            for c in range(BOARD_SIZE)
+            if board_state.get_cell((r, c)).worker_id is None
         ]
-        return random.choice(empty_cells)
+        return self.rng.choice(empty_cells)
 
-    def setup_workers(self, board) -> list[tuple[int, int]]:
-        empties = [(r, c) for r in range(BOARD_SIZE) for c in range(BOARD_SIZE)
-               if board.grid[(r, c)].worker_id is None]
-        return empties[:2]
-    
+    def setup_workers(self, board):
+        empties = [
+            (r, c)
+            for r in range(BOARD_SIZE)
+            for c in range(BOARD_SIZE)
+            if board.grid[(r, c)].worker_id is None
+        ]
+        return self.rng.sample(empties, 2)
     
