@@ -127,15 +127,37 @@ class SantoriniTk(tk.Tk):
         self.game_config = game_config
 
         w = h = MARGIN * 2 + CELL * BOARD_SIZE
-        self.canvas = tk.Canvas(self, width=w, height=h, bg="white")
-        self.canvas.pack()
+
+        # Main frame to hold board and dialogue side by side
+        main_frame = tk.Frame(self)
+        main_frame.pack(fill="both", expand=True)
+
+        # Left: Game board (canvas)
+        self.canvas = tk.Canvas(main_frame, width=w, height=h, bg="white")
+        self.canvas.pack(side="left", padx=0, pady=0)
         self.load_images()
 
+        # Dialogue and info on the right
+        right_frame = tk.Frame(main_frame)
+        right_frame.pack(side="left", fill="y", padx=10, pady=0)
+
+        # Dialogue area
+        dialogue_title = tk.Label(right_frame, text="Dialogue", font=("Arial", 12, "bold"))
+        dialogue_title.pack(anchor="nw", pady=(0, 4))
+        self.dialogue_label = tk.Label(
+            right_frame,
+            text="",
+            font=("Arial", 11),
+            wraplength=220,
+            justify="left",
+            anchor="nw"
+        )
+        self.dialogue_label.pack(anchor="nw", fill="x", pady=(0, 8))
+
         # Status and player info frame
-        info_frame = tk.Frame(self)
+        info_frame = tk.Frame(right_frame)
         info_frame.pack(fill="x")
 
-        
         self.status = tk.Label(info_frame, text="Board view", anchor="w")
         self.status.pack(fill="x")
 
@@ -166,7 +188,7 @@ class SantoriniTk(tk.Tk):
         base = Path(__file__).resolve().parent / "assets"
         tiles_dir = base / "tiles"
         workers_dir = base / "workers"
-    
+
         tiles ={
             0:"level0.png",
             1:"level1.png",
@@ -301,12 +323,12 @@ class SantoriniTk(tk.Tk):
         y1 = MARGIN + r * CELL
         x2 = x1 + CELL
         y2 = y1 + CELL
-        return x1, y1, x2, y2 
-        
+        return x1, y1, x2, y2
+
     def cell_center(self, r:int, c:int):
         x1, y1, x2, y2 = self.cell_box(r, c)
-        return (x1 + x2) // 2, (y1 + y2) // 2       
-    
+        return (x1 + x2) // 2, (y1 + y2) // 2
+
     def draw_tiles(self):
         for r in range(BOARD_SIZE):
             for c in range(BOARD_SIZE):
@@ -318,7 +340,7 @@ class SantoriniTk(tk.Tk):
                 if img is not None:
                     self.canvas.create_image(x1, y1, image=img, anchor="nw", tags=("tile",))
                 else:
-               
+
                     self.canvas.create_rectangle(x1, y1, x2, y2, fill="#ddd", outline="")
     def draw_workers(self):
         for w in self.board.workers:
@@ -335,7 +357,7 @@ class SantoriniTk(tk.Tk):
                     self.canvas.create_text(cx, cy, text=w.id, font=("Arial", 11, "bold"), fill=color)
 
 ### might delete later uf upgrade erfolgreich
-    
+
     def _draw_cells(self):
         """Enhanced cell drawing with player colors"""
         for r in range(BOARD_SIZE):
@@ -392,13 +414,13 @@ class SantoriniTk(tk.Tk):
 
         if x<0 or y< 0 :
             return None
-        
+
         c = x // CELL
         r = y // CELL
         if 0 <=r < BOARD_SIZE and 0 <= c < BOARD_SIZE:
             return int(r), int(c)
         return None #none if outside board
-    
+
 
     def highlight(self,cells,outline = "blue"): #highlight legal cells
         for (r,c) in cells:
@@ -412,7 +434,7 @@ class SantoriniTk(tk.Tk):
         x2 = x1+ CELL
         y2 = y1+ CELL
         return (x1, y1, x2, y2)
-    
+
     def _draw_grid(self):
         for i in range(BOARD_SIZE+1):
             x = MARGIN + i * CELL
@@ -439,7 +461,7 @@ class SantoriniTk(tk.Tk):
                 cell = self.board.grid[(r,c)]
                 x1, y1, x2, y2 = self._rc_to_xy(r,c)
 
-                # BOLD for height 
+                # BOLD for height
                 self.canvas.create_text((x1+x2)//2, y1 + 14, text = str(cell.height), font = ("Arial", 12, "bold"))
 
                 if cell.worker_id is not None:
@@ -583,11 +605,12 @@ class SantoriniTk(tk.Tk):
         if agent is None:
             return
 
-        worker, move, build = agent.decide_action(self.board)
+        action, phrase = agent.decide_action(self.board)
+        worker, move, build = action
 
-        if worker is None or move is None or build is None:
-            self.game_over = True
-            return
+        # update dialogue
+        if hasattr(self, "dialogue_label"):
+            self.dialogue_label.config(text=phrase or "")
 
         ok_move, won = self.controller.apply_move(worker, move)
         if not ok_move:
@@ -603,14 +626,12 @@ class SantoriniTk(tk.Tk):
 
         print(f"[DEBUG] AI {worker.owner} built at {build}, about to end turn")
         self.controller.end_turn()
-
         self.draw()
 
         if won:
             self.game_over = True
             self.draw(f"{worker.owner} wins by moving {worker.id} to {coords_to_notation(move)}!")
             return
-
 
         if self.controller.is_ai_turn() and not self.game_over:
             self.after(50, self.ai_pump) #continue ai turn after delay

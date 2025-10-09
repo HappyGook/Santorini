@@ -48,10 +48,10 @@ def minimax(board, depth, player_index, max_player_index, stats, maximizing=True
             print(f"[DEBUG] Worker id {worker.id} not found in cloned board at depth {depth}")
             continue
 
-        print(f"[DEBUG] Depth {depth}: trying action {worker.id} move {move} build {build}")
+        #print(f"[DEBUG] Depth {depth}: trying action {worker.id} move {move} build {build}")
 
         won = move_worker(new_board, new_worker, move)
-        print(f"[DEBUG] after move: worker {worker.id} at {new_worker.pos}, dst.height={new_board.get_cell(move).height}, dst.worker_id={new_board.get_cell(move).worker_id}")
+        #print(f"[DEBUG] after move: worker {worker.id} at {new_worker.pos}, dst.height={new_board.get_cell(move).height}, dst.worker_id={new_board.get_cell(move).worker_id}")
 
         if won:
             leaf_score = INF if maximizing else -INF
@@ -60,7 +60,7 @@ def minimax(board, depth, player_index, max_player_index, stats, maximizing=True
            
 
         build_block(new_board, new_worker, build)
-        print(f"[DEBUG] after build: cell {build} height={new_board.get_cell(build).height}")
+        #print(f"[DEBUG] after build: cell {build} height={new_board.get_cell(build).height}")
 
         # Get next player using modular rotation
         next_player_index = board.game_config.next_player_index(player_index)
@@ -72,8 +72,8 @@ def minimax(board, depth, player_index, max_player_index, stats, maximizing=True
         score, _ = minimax(new_board, depth - 1, next_player_index, max_player_index, stats,
                             next_maximizing)
 
-        print(f"[DEBUG] Depth {depth} player {player_id} action {worker.id} move {move} build {build} "
-              f"score={score} value={value}")
+        #print(f"[DEBUG] Depth {depth} player {player_id} action {worker.id} move {move} build {build} "
+        #      f"score={score} value={value}")
 
         
         # update best action based on maximizing/minimizing
