@@ -1,7 +1,29 @@
 from typing import List, Tuple
 from game.models import Coord, MAX_LEVEL, DOME_LEVEL
 from game.board import Board
+from collections import Counter
+from game.models import Worker
+from game.config import MAX_WORKERS_PER_PLAYER
 
+
+def can_place_worker(board: "Board", owner: str, pos: Tuple[int, int]) -> bool:
+    """Pure check: is initial placement at pos legal for owner on this board?"""
+    # on-board & existing cell?
+    if pos not in board.grid:
+        return False
+
+    cell = board.grid[pos]
+
+
+    if cell.worker_id is not None:
+        return False
+
+    # at most 2 workers per owner
+    owner_count = sum(1 for w in board.workers if w.owner == owner)
+    if owner_count >= MAX_WORKERS_PER_PLAYER:
+        return False
+
+    return True
 def can_move(board: Board, src: Coord, dst: Coord) -> bool:
     """A move is legal iff:
       - dst is 1cell away to src (8 directions)
