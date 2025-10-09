@@ -262,6 +262,7 @@ class SantoriniTk(tk.Tk):
 
         if all_done:
             self.phase = "select_Worker"
+            self.board.current_player_index=0
             self.draw(f"{self.board.current_player}: select worker")
             if self.controller.is_ai_turn() and not self.game_over:
                 self.after(50, self.ai_pump)
