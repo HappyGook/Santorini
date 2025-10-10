@@ -13,7 +13,13 @@ Action = Tuple[object, Tuple[int, int], Tuple[int, int]]
 TT = {}
 
 
-def maxn(board, depth, player_index, game_config, stats):
+def maxn(board, depth, player_index, game_config, stats, ancestor_index=None, ancestor_best=None,):
+    """
+        Max^n with deep pruning.
+        Each player maximizes their own component.
+        ancestor_index: index of the ancestor player whose value we track for pruning
+        ancestor_best: best value found so far for that ancestor
+    """
     stats.bump()
     key = (hash(board), depth, player_index)
     if key in TT:
@@ -54,18 +60,27 @@ def maxn(board, depth, player_index, game_config, stats):
 
         # Get next player using modular rotation
         next_index = (player_index + 1) % len(game_config.player_ids)
-        child_vector, _ = maxn(new_board, depth - 1, next_index, game_config, stats)
+        child_vector, _ = maxn(new_board, depth - 1, next_index, game_config, stats,
+                               ancestor_index if ancestor_index is not None else player_index,
+                               ancestor_best if ancestor_best is not None else -INF)
 
         # Select the child that maximizes the current player's value
         if best_vector is None or child_vector[player_index] > best_vector[player_index]:
             best_vector = child_vector
             best_action = action
 
-    if best_action is None:
-        print(f"[DEBUG] No best action found at depth {depth} for player {player_index}")
+        if best_action is None or child_vector[player_index] > best_vector[player_index]:
+            best_vector = child_vector
+            best_action = action
+            print(f"[DEBUG] No best action found at depth {depth} for player {player_index}")
+
+            # pruning check
+            if ancestor_index is not None and best_vector[ancestor_index] < ancestor_best:
+                # ancestor would not choose this path — prune
+                break
+
 
     TT[key] = (best_vector, best_action)
-
     return best_vector, best_action
 
 def generate_actions(board, player_id) -> List[Action]:
