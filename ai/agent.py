@@ -3,7 +3,7 @@ import random
 from game.board import BOARD_SIZE
 from ai.minimax import minimax, TT, SearchStats
 
-from ai.minimax import minimax
+from ai.maxn import maxn, TT, SearchStats
 from ai.phrases import PHRASES_BY_PLAYER
 
 class Agent:
@@ -19,15 +19,16 @@ class Agent:
         stats = SearchStats()
 
         player_index = board_state.game_config.get_player_index(self.player_id)
-        score, action = minimax(
+        vector, action = maxn(
             board_state,
             depth=self.depth,  # or a fixed int (e.g., 3)
             player_index=player_index,
-            max_player_index=player_index,  # maximizing for me
-            stats=stats,
-            maximizing=True)
+            game_config=board_state.game_config,
+            stats=stats)
         if action is None:
             return None, None, None
+
+        score = vector[player_index]
         phrase = self.comment_on_eval(max(-1000, min(1000, score))) # normalized because of infinity
 
         print(f"[AI] depth={self.depth} nodes={stats.nodes} tt_hits={stats.tt_hits} score={score}")

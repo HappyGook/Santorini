@@ -60,3 +60,12 @@ class Board:
                 cell = self.grid[(r, c)]
                 print(f"({r},{c}): h={cell.height}, w={cell.worker_id}")
             print()  # Blank line between rows for readability
+
+    def game_over(self):
+        for r in range(BOARD_SIZE):
+            for c in range(BOARD_SIZE):
+                cell = self.grid[(r, c)]
+                if cell.height==3 and cell.worker_id is not None:
+                    return True
+
+        return False
