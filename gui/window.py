@@ -356,8 +356,6 @@ class SantoriniTk(tk.Tk):
                     color = PLAYER_COLORS.get(w.owner, "black")
                     self.canvas.create_text(cx, cy, text=w.id, font=("Arial", 11, "bold"), fill=color)
 
-### might delete later uf upgrade erfolgreich
-
     def _draw_cells(self):
         """Enhanced cell drawing with player colors"""
         for r in range(BOARD_SIZE):
@@ -455,17 +453,7 @@ class SantoriniTk(tk.Tk):
             y = MARGIN + r * CELL + CELL // 2
             self.canvas.create_text(MARGIN // 2, y, text = str(r+1))
 
-    def _draw_cells(self): #show height and worker id in cell
-        for r in range (BOARD_SIZE):
-            for c in range(BOARD_SIZE):
-                cell = self.board.grid[(r,c)]
-                x1, y1, x2, y2 = self._rc_to_xy(r,c)
-
-                # BOLD for height
-                self.canvas.create_text((x1+x2)//2, y1 + 14, text = str(cell.height), font = ("Arial", 12, "bold"))
-
-                if cell.worker_id is not None:
-                    self.canvas.create_text((x1+x2)//2, (y1+y2)//2, text = cell.worker_id, font = ("Arial", 11))
+    
 
     def on_click(self, event): #handle click
 

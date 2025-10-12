@@ -2,7 +2,6 @@ import random
 
 from game.board import BOARD_SIZE
 from ai.minimax import minimax, TT, SearchStats
-
 from ai.maxn import maxn, TT, SearchStats
 from ai.phrases import PHRASES_BY_PLAYER
 
