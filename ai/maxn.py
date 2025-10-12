@@ -51,7 +51,8 @@ def maxn(board, depth, player_index, game_config, stats, ancestor_index=None, an
 
         won = move_worker(new_board, new_worker, move)
         if won:
-            payoff = [0] * len(game_config.player_ids)
+            n = len(game_config.player_ids)
+            payoff = [-INF] * n
             payoff[player_index] = INF
             TT[key] = (payoff, action)
             return payoff, action
