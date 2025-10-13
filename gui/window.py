@@ -5,7 +5,7 @@ from typing import Dict, Any
 from game.board import Board
 from game.config import GameConfig
 from game.models import BOARD_SIZE, Worker
-from gui.notation import coords_to_notation
+from gui.notation import coords_to_notation, GameNotation
 from ai.agent import Agent
 from gui.gameplay import GameController
 from PIL import Image, ImageTk
@@ -125,6 +125,9 @@ class SantoriniTk(tk.Tk):
         self.game_over = False
         self.controller = controller
         self.game_config = game_config
+        
+        # Initialize game notation
+        self.notation = GameNotation()
 
         w = h = MARGIN * 2 + CELL * BOARD_SIZE
 
@@ -246,6 +249,10 @@ class SantoriniTk(tk.Tk):
         placed = place_worker(self.board, wid, pid, pos)
 
         if placed:
+            # Record setup in notation
+            worker = next((w for w in self.board.workers if w.id == wid), None)
+            if worker:
+                self.notation.record_setup(worker)
             self.draw(f"{pid}: placed {wid} at {coords_to_notation(pos)}")
         else:
             self.setup_workers()
@@ -453,7 +460,12 @@ class SantoriniTk(tk.Tk):
             y = MARGIN + r * CELL + CELL // 2
             self.canvas.create_text(MARGIN // 2, y, text = str(r+1))
 
-    
+    def end_game(self, winner: str):
+        """Handle game end - save notation and display winner"""
+        self.game_over = True
+        self.notation.save()  # Save with default filename
+        print(f"Game notation saved! Winner: {winner}")
+        self.draw(f"{winner} wins! Game saved.")
 
     def on_click(self, event): #handle click
 
@@ -481,6 +493,11 @@ class SantoriniTk(tk.Tk):
             if not ok:
                 self.draw(f"{player}: invalid placement")
                 return
+
+            # Record setup in notation
+            worker = next((w for w in self.board.workers if w.id == wid), None)
+            if worker:
+                self.notation.record_setup(worker)
 
             self.draw(f"{player}: placed {wid} at {coords_to_notation(rc)}")
 
@@ -545,7 +562,9 @@ class SantoriniTk(tk.Tk):
 
                 if won:# win checked
                     self.phase = "game_over"
-                    self.draw(f"{player} wins by moving {self.selected_worker.id} to {coords_to_notation(dst)}!")
+                    # Record final turn and save notation
+                    self.notation.record_turn(src, dst)
+                    self.end_game(player)
                     return
 
                 self.legal = self.controller.legal_builds_for(self.selected_worker)
@@ -563,6 +582,9 @@ class SantoriniTk(tk.Tk):
                 if not ok:
                     self.draw(f"{player}: illegal build")
                     return
+
+                # Record turn in notation
+                self.notation.record_turn(self.src, self.selected_worker.pos, rc)
 
                 print(f"[DEBUG] {player} built at {rc}, about to end turn")
                 self.controller.end_turn()
@@ -600,6 +622,7 @@ class SantoriniTk(tk.Tk):
         if hasattr(self, "dialogue_label"):
             self.dialogue_label.config(text=phrase or "")
 
+        old_pos = worker.pos
         ok_move, won = self.controller.apply_move(worker, move)
         if not ok_move:
             self.draw(f"{worker.owner}: illegal move by AI")
@@ -612,13 +635,19 @@ class SantoriniTk(tk.Tk):
             self.game_over = True
             return
 
+        # Record turn in notation
+        if won:
+            # Winning move - no build recorded
+            self.notation.record_turn(old_pos, move)
+        else:
+            self.notation.record_turn(old_pos, move, build)
+
         print(f"[DEBUG] AI {worker.owner} built at {build}, about to end turn")
         self.controller.end_turn()
         self.draw()
 
         if won:
-            self.game_over = True
-            self.draw(f"{worker.owner} wins by moving {worker.id} to {coords_to_notation(move)}!")
+            self.end_game(worker.owner)
             return
 
         if self.controller.is_ai_turn() and not self.game_over:
