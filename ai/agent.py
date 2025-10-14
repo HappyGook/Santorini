@@ -1,5 +1,6 @@
 import random
 
+from ai.mtcs import mcts
 from game.board import BOARD_SIZE
 from ai.minimax import minimax, TT, SearchStats
 from ai.maxn import maxn, TT, SearchStats
@@ -18,7 +19,7 @@ class Agent:
         stats = SearchStats()
 
         player_index = board_state.game_config.get_player_index(self.player_id)
-        vector, action = maxn(
+        vector, action = mcts(
             board_state,
             depth=self.depth,  # or a fixed int (e.g., 3)
             player_index=player_index,

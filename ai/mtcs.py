@@ -50,7 +50,15 @@ def mcts_search(board, player_index, game_config, stats, iterations=500):
     if best_child.visits > 0:
         vector[player_index] = best_child.value / best_child.visits
 
-    return vector, best_child.action
+    # convert action from (worker_id, move, build) to (worker_obj, move, build)
+    if best_child.action is not None:
+        worker_id, move, build = best_child.action
+        worker_obj = find_worker_by_id(root.board, worker_id)
+        action = (worker_obj, move, build)
+    else:
+        action = None
+
+    return vector, action
 
 def select(node):
     while node.children:
@@ -82,14 +90,14 @@ def expand(node, game_config, stats):
     ordered_actions = order_moves(node.board, unexplored_actions)
     action = ordered_actions[0]  # select the best move according to heuristic
 
-    worker, move, build = action
+    worker_id, move, build = action
     new_board = node.board.clone()
 
-    new_worker = find_worker_by_id(new_board, worker.id)
+    new_worker = find_worker_by_id(new_board, worker_id)
     if new_worker is None:
         return None
 
-    won = move_worker(new_board, worker, move)
+    won = move_worker(new_board, new_worker, move)
     if won:
         num_players = len(game_config.player_ids)
         winning_vector = [-INF] * num_players
@@ -100,7 +108,7 @@ def expand(node, game_config, stats):
         node.children[action] = child
         return child
 
-    build_block(new_board, worker, build)
+    build_block(new_board, new_worker, build)
 
     next_index = (node.player_index + 1) % len(game_config.player_ids)
     child = MCTSNode(new_board, next_index, parent=node, action=action)
@@ -114,21 +122,21 @@ def simulate(board, player_index, game_config, steps=3):
     current_index = player_index
     for _ in range(steps):
         player_id = game_config.get_player_id(current_index)
-        actions = generate_actions(temp_board, current_index)
+        actions = generate_actions(temp_board, player_id)
         if not actions:
             break
 
         action = random.choice(actions)
-        worker, move, build = action
+        worker_id, move, build = action
 
-        temp_worker = find_worker_by_id(temp_board, worker.id)
+        temp_worker = find_worker_by_id(temp_board, worker_id)
         if temp_worker is None:
             break
-        won = move_worker(temp_board, worker, move)
+        won = move_worker(temp_board, temp_worker, move)
         if won:
             return INF if current_index == player_index else -INF
 
-        build_block(temp_board, worker, build)
+        build_block(temp_board, temp_worker, build)
         current_index = (current_index + 1) % len(game_config.player_ids)
 
     player_id = game_config.get_player_id(player_index)
@@ -149,13 +157,13 @@ def mcts(board, depth, player_index, game_config, stats, **kwargs):
     return mcts_search(board, player_index, game_config, stats, iterations)
 
 
-def generate_actions(board, player_index) -> List[Action]:
+def generate_actions(board, player_id) -> List[Action]:
     actions = []
-    workers = [w for w in board.workers if w.owner == player_index]
+    workers = [w for w in board.workers if w.owner == player_id]
     for worker in workers:
         for move in legal_moves(board, worker.pos):
             for build in legal_builds(board, move):
-                actions.append((worker, move, build))
+                actions.append((worker.id, move, build))
     return actions
 
 
@@ -183,9 +191,12 @@ class SearchStats:
 
 
 def order_moves(board, moves):
-    # moves: list[(worker, move_to, build_to)]
+    # moves: list[(worker_id, move_to, build_to)]
     def score_move(m):
-        (w, mv, bd) = m
+        (worker_id, mv, bd) = m
+        w = find_worker_by_id(board, worker_id)
+        if w is None:
+            return -float('inf')
         r0, c0 = w.pos;
         r1, c1 = mv
         h0 = board.grid[(r0, c0)].height;
