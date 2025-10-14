@@ -116,7 +116,7 @@ def expand(node, game_config, stats):
     stats.bump()
     return child
 
-def simulate(board, player_index, game_config, steps=3):
+def simulate(board, player_index, game_config, steps=6):
     """Random simulation from the current position"""
     temp_board = board.clone()
     current_index = player_index
@@ -148,12 +148,12 @@ def backpropagate(node, reward):
         node.value += reward
         node = node.parent
 
-def mcts(board, depth, player_index, game_config, stats, **kwargs):
+def mcts(board, depth, player_index, game_config, stats, iters=None, **kwargs):
     """
     MCTS wrapper that matches the maxn function signature for easy agent integration
     The depth parameter is converted to iterations (depth * 100)
     """
-    iterations = max(100, depth * 100)  # Scale depth to reasonable iteration count
+    iterations = int(iters) if iters is not None else max(200, depth * 200) # let ui control iters
     return mcts_search(board, player_index, game_config, stats, iterations)
 
 
