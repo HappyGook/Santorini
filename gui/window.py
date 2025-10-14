@@ -45,7 +45,7 @@ def choose_mode_ui() -> Dict[str, Any]:
     """Enhanced mode selection with 2-player and 3-player options"""
     root = tk.Tk()
     root.title("Choose Game Mode")
-    root.geometry("400x300")
+    root.geometry("440x420")
     root.resizable(False, False)
 
     # Number of players selection
@@ -69,16 +69,106 @@ def choose_mode_ui() -> Dict[str, Any]:
     ttk.Radiobutton(mode_frame, text="Human vs AI", variable=mode_var, value="pvai", padding=5).pack(anchor="w")
     ttk.Radiobutton(mode_frame, text="AI vs AI", variable=mode_var, value="aivai", padding=5).pack(anchor="w")
 
+    ai_box = ttk.LabelFrame(root, text="AI configuration", padding=8)
+    ai_box.pack(fill="x", padx=12, pady=(8, 0))
+    
+    def make_ai_vars():
+        return {
+            "algo": tk.StringVar(value="minimax"),
+            "depth": tk.IntVar(value=3),
+            "iters": tk.IntVar(value=400),     # used only for MCTS
+        }
+    ai_vars: Dict[str, Dict[str, tk.Variable]] = {
+        "P1": make_ai_vars(),
+        "P2": make_ai_vars(),
+        "P3": make_ai_vars(),
+    }
+
+     # build a row factory
+    rows: Dict[str, Dict[str, Any]] = {}
+    def add_ai_row(pid: str, row_index: int):
+        r: Dict[str, Any] = {}
+        r["frame"] = ttk.Frame(ai_box)
+        r["frame"].grid(row=row_index, column=0, sticky="ew", pady=2)
+
+        ttk.Label(r["frame"], text=f"{pid}", width=4).grid(row=0, column=0, padx=(0, 8))
+        ttk.Label(r["frame"], text="Algo").grid(row=0, column=1, sticky="e")
+        r["algo"] = ttk.Combobox(
+            r["frame"], width=10, state="readonly",
+            values=["minimax", "maxn", "mcts"], textvariable=ai_vars[pid]["algo"]
+        )
+        r["algo"].grid(row=0, column=2, padx=4)
+
+        ttk.Label(r["frame"], text="Depth").grid(row=0, column=3, sticky="e")
+        r["depth"] = ttk.Spinbox(r["frame"], from_=1, to=8, width=5, textvariable=ai_vars[pid]["depth"])
+        r["depth"].grid(row=0, column=4, padx=4)
+
+        ttk.Label(r["frame"], text="Iters (MCTS)").grid(row=0, column=5, sticky="e")
+        r["iters"] = ttk.Spinbox(r["frame"], from_=50, to=5000, increment=50, width=7, textvariable=ai_vars[pid]["iters"])
+        r["iters"].grid(row=0, column=6, padx=4)
+
+        rows[pid] = r
+
+    add_ai_row("P1", 0)
+    add_ai_row("P2", 1)
+    add_ai_row("P3", 2)
+    
+    def refresh_ai_rows(*_):
+        mode = mode_var.get()
+        n = int(players_var.get())
+
+          # who is AI by mode
+        if mode == "pvp":
+            ai_players = set()
+        elif mode == "pvai":
+            ai_players = {"P2"} if n == 2 else {"P2", "P3"}
+        else:  # aivai
+            ai_players = {"P1", "P2"} if n == 2 else {"P1", "P2", "P3"}
+
+        # show rows up to n players; enable only AI players
+        for i, pid in enumerate(["P1", "P2", "P3"]):
+            frame = rows[pid]["frame"]
+            if i < n:
+                frame.grid()
+                is_ai = pid in ai_players
+                rows[pid]["algo"].config(state="readonly" if is_ai else "disabled")
+                rows[pid]["depth"].config(state="normal" if is_ai else "disabled")
+                # toggle iters from algo
+                algo = ai_vars[pid]["algo"].get()
+                rows[pid]["iters"].config(
+                    state="normal" if (is_ai and algo == "mcts") else "disabled"
+                )
+            else:
+                frame.grid_remove()
+
+    # bind changes
+    players_var.trace_add("write", refresh_ai_rows)
+    mode_var.trace_add("write", refresh_ai_rows)
+    for pid in ["P1", "P2", "P3"]:
+        rows[pid]["algo"].bind("<<ComboboxSelected>>", lambda _e, p=pid: refresh_ai_rows())
+
+    refresh_ai_rows()
+
     selected = {"val": None}
 
     def start():
         num_players = int(players_var.get())
         mode = mode_var.get()
 
-        selected["val"] = {
-            "num_players": num_players,
-            "mode": mode
-        }
+        # build ai dict only for AI players
+        ai: Dict[str, Dict[str, Any]] = {}
+        if mode != "pvp":
+            if mode == "pvai":
+                ai_players = ["P2"] if num_players == 2 else ["P2", "P3"]
+            else:  # aivai
+                ai_players = ["P1", "P2"] if num_players == 2 else ["P1", "P2", "P3"]
+            for pid in ai_players:
+                algo = ai_vars[pid]["algo"].get()
+                depth = int(ai_vars[pid]["depth"].get())
+                iters = int(ai_vars[pid]["iters"].get()) if algo == "mcts" else None
+                ai[pid] = {"algo": algo, "depth": depth, "iters": iters}
+
+        selected["val"] = {"num_players": num_players, "mode": mode, "ai": ai}
         root.destroy()
 
     ttk.Button(root, text="Start Game", command=start, padding=10).pack(pady=20)
@@ -87,34 +177,26 @@ def choose_mode_ui() -> Dict[str, Any]:
     return selected["val"]
 
 
-def build_players(mode_selection: Dict[str, Any], game_config: GameConfig) -> Dict[str, Dict]:
-    """Build player configuration based on selected mode and game config"""
-    mode = mode_selection["mode"]
-    num_players = game_config.num_players
+def build_players(mode_sel, game_config):
+    players = {}
+    ids = game_config.player_ids[: mode_sel["num_players"]]
+    mode = mode_sel["mode"]
+    ai_cfg = mode_sel.get("ai", {})
 
     players = {}
 
-    if mode == "pvp":
-        # All human players
-        for i in range(num_players):
-            player_id = game_config.get_player_id(i)
-            players[player_id] = {"type": "HUMAN", "agent": None}
-
-    elif mode == "pvai":
-        # First player human, rest AI
-        for i in range(num_players):
-            player_id = game_config.get_player_id(i)
-            if i == 0:
-                players[player_id] = {"type": "HUMAN", "agent": None}
+    for pid in ids:
+        if mode == "pvp":
+            players[pid] = {"type": "HUMAN"}
+        elif mode == "pvai":
+            if pid == "P1":
+                players[pid] = {"type": "HUMAN"}
             else:
-                players[player_id] = {"type": "AI", "agent": Agent(player_id)}
-
-    elif mode == "aivai":
-        # All AI players
-        for i in range(num_players):
-            player_id = game_config.get_player_id(i)
-            players[player_id] = {"type": "AI", "agent": Agent(player_id)}
-
+                cfg = ai_cfg.get(pid, {"algo": "minimax", "depth": 3, "iters": None})
+                players[pid] = {"type": "AI", "agent": Agent(pid, **cfg)}
+        else:  # aivai
+            cfg = ai_cfg.get(pid, {"algo": "minimax", "depth": 3, "iters": None})
+            players[pid] = {"type": "AI", "agent": Agent(pid, **cfg)}
     return players
 
 class SantoriniTk(tk.Tk):
@@ -615,9 +697,25 @@ class SantoriniTk(tk.Tk):
         if agent is None:
             return
 
-        action, phrase = agent.decide_action(self.board)
+        eval_value, action = agent.decide_action(self.board)
+        if action is None:
+            # no legal action — treat as stalemate 
+            self.controller.end_turn()
+            self.draw(f"{player}: no legal moves, skipping")
+            if self.controller.is_ai_turn() and not self.game_over:
+                self.after(50, self.ai_pump)
+            return
         worker, move, build = action
 
+        try:
+            player_index = self.game_config.get_player_index(player)
+            if isinstance(eval_value, (list, tuple)):
+                my_score = float(eval_value[player_index])
+            else:
+                my_score = float(eval_value)
+            phrase = agent.comment_on_eval(max(-1000, min(1000, my_score)))
+        except Exception:
+            phrase = ""
         # update dialogue
         if hasattr(self, "dialogue_label"):
             self.dialogue_label.config(text=phrase or "")

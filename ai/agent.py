@@ -1,47 +1,101 @@
-import random
+from __future__ import annotations
 
-from ai.mtcs import mcts
+import random
+from typing import Optional, Tuple, Literal
+
+import ai.minimax as mm
+import ai.maxn as mx
+import ai.mtcs as mc
+
 from game.board import BOARD_SIZE
-from ai.minimax import minimax, TT, SearchStats
-from ai.maxn import maxn, TT, SearchStats
 from ai.phrases import PHRASES_BY_PLAYER
 
+
+class FallbackStats: # fallback for search stats 
+    __slots__ = ("nodes", "tt_hits")
+    def __init__(self) -> None:
+        self.nodes = 0
+        self.tt_hits = 0
+    def bump(self) -> None:
+        self.nodes += 1
+
+def make_stats():
+    # Prefer an algos for SearchStats 
+    Stats = (getattr(mm, "SearchStats", None) or getattr(mx, "SearchStats", None) or getattr(mc, "SearchStats", None))
+    if Stats is None:
+        return FallbackStats()
+    return Stats()
+
+
+
+AlgoName = Literal["minimax", "maxn", "mcts"]
+
 class Agent:
-    def __init__(self, player_id: str, depth: int =3):
+    def __init__(self, player_id: str, algo: AlgoName = "minimax", depth: int =3, iters: Optional[int] = None,rng_seed: Optional[int] = None):
         self.player_id = player_id
         self.depth = depth
-        self.phrases=[...]
-        self.rng = random.Random()
+        self.rng = random.Random(rng_seed)
+        self.algo: AlgoName = algo
+        self.iters = iters
+        
+    def decide_action(self, board_state)-> Tuple[float | list[float], Optional[tuple]]:
 
-    def decide_action(self, board_state):
+        game_config = board_state.game_config
+        player_index = game_config.get_player_index(self.player_id)
 
-        TT.clear()
-        stats = SearchStats()
+        # New stats per decision and clear per-algo TT
+        stats = make_stats()
+        if hasattr(mm, "TT"): mm.TT.clear()
+        if hasattr(mx, "TT"): mx.TT.clear()
+        if hasattr(mc, "TT"): mc.TT.clear()
 
-        player_index = board_state.game_config.get_player_index(self.player_id)
-        vector, action = mcts(
-            board_state,
-            depth=self.depth,  # or a fixed int (e.g., 3)
-            player_index=player_index,
-            game_config=board_state.game_config,
-            stats=stats)
-        if action is None:
-            return None, None, None
+        if self.algo == "minimax":
+           
+            score, action = mm.minimax(
+                board_state,
+                depth=self.depth,
+                player_index=player_index,
+                max_player_index=player_index,  # maximize 
+                stats=stats,
+                maximizing=True
+            )
+            eval_value = score
 
-        score = vector[player_index]
-        phrase = self.comment_on_eval(max(-1000, min(1000, score))) # normalized because of infinity
+        elif self.algo == "maxn":
+            vector, action = mx.maxn(
+                board_state,
+                depth=self.depth,
+                player_index=player_index,
+                game_config=game_config,
+                stats=stats
+            )
+            eval_value = vector
 
-        print(f"[AI] depth={self.depth} nodes={stats.nodes} tt_hits={stats.tt_hits} score={score}")
-        return action, phrase  # (worker, move, build)
+        else:  # "mcts"
+            # Allow overriding iterations
+            vector, action = mc.mcts(
+                board_state,
+                player_index=player_index,
+                game_config=game_config,
+                iters=self.iters,
+                depth=self.depth,
+                stats=stats
+            )
+            eval_value = vector
+
+        print(f"[{self.player_id}][{self.algo}] nodes={stats.nodes} tt_hits={stats.tt_hits}")
+
+        return eval_value, action
+        
 
     def decide_setup(self, board_state):
         empty_cells = [
             (r, c)
             for r in range(BOARD_SIZE)
             for c in range(BOARD_SIZE)
-            if board_state.get_cell((r, c)).worker_id is None
+            if board_state.grid[(r, c)].worker_id is None
         ]
-        return self.rng.choice(empty_cells)
+        return self.rng.choice(empty_cells) if empty_cells else None
 
     def setup_workers(self, board):
         empties = [
@@ -53,5 +107,8 @@ class Agent:
         return self.rng.sample(empties, 2)
 
     def comment_on_eval(self, eval_score: float) -> str:
-        closest_key = min(PHRASES_BY_PLAYER[self.player_id].keys(), key=lambda x: abs(x - eval_score))
-        return PHRASES_BY_PLAYER[self.player_id][closest_key]
+        mapping = PHRASES_BY_PLAYER.get(self.player_id)
+        if not mapping:
+            return ""
+        closest_key = min(mapping.keys(), key=lambda x: abs(x - float(eval_score)))
+        return mapping[closest_key]
