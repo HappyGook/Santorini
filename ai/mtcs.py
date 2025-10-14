@@ -24,19 +24,32 @@ class MCTSNode:
         self.visits = 0
         self.value = 0.0
 
-def mcts_search(root_board, player_index, iterations=500, game_config=None):
-    root = MCTSNode(root_board, player_index)
+def mcts_search(board, player_index, game_config, stats, iterations=500):
+    """
+       MCTS search that returns the same format as maxn: (vector, action)
+    """
+    root = MCTSNode(board, player_index)
     for i in range(iterations):
         node = select(root)
-        child = expand(node, game_config)
-        reward = simulate(child.board, player_index)
+        child = expand(node, game_config, stats)
+        if child is None:
+            child = node
+        reward = simulate(child.board, child.player_index, game_config)
         backpropagate(child, reward)
+
+    if not root.children:
+        # No valid moves found
+        return None, None
+
 
     # choose best move by visit count
     best_child = max(root.children.values(), key=lambda c: c.visits)
-    # prepare vector-like output (like maxn)
-    vector = [0] * len(root.board.players)
-    vector[player_index] = best_child.value / (best_child.visits or 1)
+
+    num_players = len(game_config.player_ids)
+    vector = [0.0] * num_players
+    if best_child.visits > 0:
+        vector[player_index] = best_child.value / best_child.visits
+
     return vector, best_child.action
 
 def select(node):
@@ -45,46 +58,96 @@ def select(node):
     return node
 
 def uct_value(node):
+    """Upper Confidence Bound for Trees"""
     if node.visits == 0:
         return INF
-    C = 1.4
-    return (node.value / node.visits) + C*((math.log(node.parent.visits) / node.visits) ** 0.5)
 
-def expand(node, game_config=None):
-    actions = [a for a in generate_actions(node.board, node.player_index)
-               if a not in node.children]
-    if not actions:
-        return node
-    ordered_actions = order_moves(node.board, actions)
+    C = 1.4  # exploration parameter
+    exploitation = node.value / node.visits
+    exploration = C * math.sqrt(math.log(node.parent.visits) / node.visits)
+    return exploitation + exploration
+
+
+def expand(node, game_config, stats):
+    """Expand a node by adding one child"""
+    player_id = game_config.get_player_id(node.player_index)
+    actions = generate_actions(node.board, player_id)
+
+    # Filter out actions that are already children
+    unexplored_actions = [a for a in actions if a not in node.children]
+
+    if not unexplored_actions:
+        return None  # fully expanded
+
+    ordered_actions = order_moves(node.board, unexplored_actions)
     action = ordered_actions[0]  # select the best move according to heuristic
-    new_board = node.board.clone()
+
     worker, move, build = action
-    move_worker(new_board, worker, move)
+    new_board = node.board.clone()
+
+    new_worker = find_worker_by_id(new_board, worker.id)
+    if new_worker is None:
+        return None
+
+    won = move_worker(new_board, worker, move)
+    if won:
+        num_players = len(game_config.player_ids)
+        winning_vector = [-INF] * num_players
+        winning_vector[node.player_index] = INF
+        child = MCTSNode(new_board, node.player_index, parent=node, action=action)
+        child.value = INF
+        child.visits = 1
+        node.children[action] = child
+        return child
+
     build_block(new_board, worker, build)
-    next_index = next_player_index(node.player_index, len(new_board.players))
+
+    next_index = (node.player_index + 1) % len(game_config.player_ids)
     child = MCTSNode(new_board, next_index, parent=node, action=action)
     node.children[action] = child
+    stats.bump()
     return child
 
-def simulate(board, player_index, steps=3):
+def simulate(board, player_index, game_config, steps=3):
+    """Random simulation from the current position"""
     temp_board = board.clone()
     current_index = player_index
     for _ in range(steps):
+        player_id = game_config.get_player_id(current_index)
         actions = generate_actions(temp_board, current_index)
         if not actions:
             break
+
         action = random.choice(actions)
         worker, move, build = action
-        move_worker(temp_board, worker, move)
+
+        temp_worker = find_worker_by_id(temp_board, worker.id)
+        if temp_worker is None:
+            break
+        won = move_worker(temp_board, worker, move)
+        if won:
+            return INF if current_index == player_index else -INF
+
         build_block(temp_board, worker, build)
-        current_index = next_player_index(current_index, len(temp_board.players))
-    return evaluate(temp_board, player_index)
+        current_index = (current_index + 1) % len(game_config.player_ids)
+
+    player_id = game_config.get_player_id(player_index)
+    return evaluate(temp_board, player_id)
 
 def backpropagate(node, reward):
     while node:
         node.visits += 1
         node.value += reward
         node = node.parent
+
+def mcts(board, depth, player_index, game_config, stats, **kwargs):
+    """
+    MCTS wrapper that matches the maxn function signature for easy agent integration
+    The depth parameter is converted to iterations (depth * 100)
+    """
+    iterations = max(100, depth * 100)  # Scale depth to reasonable iteration count
+    return mcts_search(board, player_index, game_config, stats, iterations)
+
 
 def generate_actions(board, player_index) -> List[Action]:
     actions = []
