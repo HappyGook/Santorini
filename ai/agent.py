@@ -5,7 +5,7 @@ from typing import Optional, Tuple, Literal
 
 import ai.minimax as mm
 import ai.maxn as mx
-import ai.mtcs as mc
+import ai.mcts as mc
 
 from game.board import BOARD_SIZE
 from ai.phrases import PHRASES_BY_PLAYER

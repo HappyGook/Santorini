@@ -25,7 +25,6 @@ def build_block(board: Board, worker: Worker, build_pos: Coord) -> None:
     build_cell = board.get_cell(build_pos)
     build_cell.height += 1
 
-    from typing import Tuple
 
 
 def place_worker(board: "Board", worker_id: str, owner: str, pos: Tuple[int, int]) -> bool:

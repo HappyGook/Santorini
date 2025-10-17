@@ -14,6 +14,7 @@ Action = Tuple[object, Tuple[int, int], Tuple[int, int]]
 
 TT = {}
 
+
 class MCTSNode:
     def __init__(self, board, player_index, parent=None, action=None):
         self.board = board
@@ -23,6 +24,7 @@ class MCTSNode:
         self.children = {}
         self.visits = 0
         self.value = 0.0
+
 
 def mcts_search(board, player_index, game_config, stats, iterations=500):
     """
@@ -40,7 +42,6 @@ def mcts_search(board, player_index, game_config, stats, iterations=500):
     if not root.children:
         # No valid moves found
         return None, None
-
 
     # choose best move by visit count
     best_child = max(root.children.values(), key=lambda c: c.visits)
@@ -60,18 +61,25 @@ def mcts_search(board, player_index, game_config, stats, iterations=500):
 
     return vector, action
 
+
 def select(node):
     while node.children:
-        node = max(node.children.values(), key=uct_value)
+        node = max(node.children.values(), key=lambda c: uct_value(c, node.player_index))
     return node
 
-def uct_value(node):
-    """Upper Confidence Bound for Trees"""
+
+def uct_value(node, parent_player_index):
+    """Upper Confidence Bound for Trees - adversarial version"""
     if node.visits == 0:
         return INF
 
     C = 1.4  # exploration parameter
     exploitation = node.value / node.visits
+
+    # If opponent's node, we want to minimize their value (adversarial)
+    if node.player_index != parent_player_index:
+        exploitation = -exploitation
+
     exploration = C * math.sqrt(math.log(node.parent.visits) / node.visits)
     return exploitation + exploration
 
@@ -87,8 +95,8 @@ def expand(node, game_config, stats):
     if not unexplored_actions:
         return None  # fully expanded
 
-    ordered_actions = order_moves(node.board, unexplored_actions)
-    action = ordered_actions[0]  # select the best move according to heuristic
+    # Random exploration - let MCTS learn through UCT which moves are best
+    action = random.choice(unexplored_actions)
 
     worker_id, move, build = action
     new_board = node.board.clone()
@@ -116,44 +124,79 @@ def expand(node, game_config, stats):
     stats.bump()
     return child
 
-def simulate(board, player_index, game_config, steps=6):
-    """Random simulation from the current position"""
+
+def simulate(board, player_index, game_config, steps=4):
+    """Fast heuristic-based simulation from the current position"""
     temp_board = board.clone()
     current_index = player_index
+
     for _ in range(steps):
         player_id = game_config.get_player_id(current_index)
         actions = generate_actions(temp_board, player_id)
         if not actions:
             break
 
-        action = random.choice(actions)
-        worker_id, move, build = action
+        # Quick heuristic scoring WITHOUT expensive cloning
+        best_action = None
+        best_score = -INF
 
-        temp_worker = find_worker_by_id(temp_board, worker_id)
-        if temp_worker is None:
+        for action in actions:
+            worker_id, move, build = action
+            w = find_worker_by_id(temp_board, worker_id)
+            if w is None:
+                continue
+
+            # Quick win check without cloning
+            move_height = temp_board.grid[move].height
+            if move_height == 3:
+                # This is a winning move for current player
+                return INF if current_index == player_index else -INF
+
+            # Fast heuristic: prioritize climbing + capping
+            current_height = temp_board.grid[w.pos].height
+            climb_bonus = (move_height - current_height) * 20
+            cap_bonus = 100 if temp_board.grid[build].height == 3 else 0
+            move_score = climb_bonus + cap_bonus + move_height * 5
+
+            if move_score > best_score:
+                best_score = move_score
+                best_action = action
+
+        if best_action is None:
             break
+
+        worker_id, move, build = best_action
+        temp_worker = find_worker_by_id(temp_board, worker_id)
         won = move_worker(temp_board, temp_worker, move)
         if won:
             return INF if current_index == player_index else -INF
-
         build_block(temp_board, temp_worker, build)
         current_index = (current_index + 1) % len(game_config.player_ids)
 
     player_id = game_config.get_player_id(player_index)
     return evaluate(temp_board, player_id)
 
+
 def backpropagate(node, reward):
+    """Backpropagate reward with player-relative perspective"""
+    current_player = node.player_index
     while node:
         node.visits += 1
-        node.value += reward
+        # If node belongs to the current player add reward
+        # If it's an opponent's node, subtract it (adversarial)
+        if node.player_index == current_player:
+            node.value += reward
+        else:
+            node.value -= reward
         node = node.parent
+
 
 def mcts(board, depth, player_index, game_config, stats, iters=None, **kwargs):
     """
     MCTS wrapper that matches the maxn function signature for easy agent integration
-    The depth parameter is converted to iterations (depth * 100)
+    The depth parameter is converted to iterations
     """
-    iterations = int(iters) if iters is not None else max(200, depth * 200) # let ui control iters
+    iterations = int(iters) if iters is not None else max(1000, depth * 400)
     return mcts_search(board, player_index, game_config, stats, iterations)
 
 
@@ -188,21 +231,3 @@ class SearchStats:
         self.tt_hits = 0
 
     def bump(self): self.nodes += 1
-
-
-def order_moves(board, moves):
-    # moves: list[(worker_id, move_to, build_to)]
-    def score_move(m):
-        (worker_id, mv, bd) = m
-        w = find_worker_by_id(board, worker_id)
-        if w is None:
-            return -float('inf')
-        r0, c0 = w.pos;
-        r1, c1 = mv
-        h0 = board.grid[(r0, c0)].height;
-        h1 = board.grid[(r1, c1)].height
-        delta = h1 - h0  # climbing is good in Santorini
-        # prefer building next to our worker and capping enemy’s towers later
-        return (delta, h1, -(board.grid[bd].height))
-
-    return sorted(moves, key=score_move, reverse=True)
