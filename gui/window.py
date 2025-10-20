@@ -46,7 +46,7 @@ def choose_mode_ui() -> Dict[str, Any]:
     root = tk.Tk()
     root.title("Choose Game Mode")
     root.geometry("440x420")
-    root.resizable(False, False)
+    root.resizable(True, True)
 
     # Number of players selection
     ttk.Label(root, text="Number of Players:", padding=10, font=("Arial", 12, "bold")).pack(anchor="w")
