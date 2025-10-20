@@ -1,9 +1,8 @@
 from typing import Tuple, Optional, List
-from ai.heuristics import evaluate
+from ai.heuristics import evaluate, order_moves
 from game.config import GameConfig
 from game.moves import move_worker, build_block
 from game.rules import legal_moves, legal_builds
-from functools import lru_cache
 
 # infinity const for evaluation win/lose
 INF = 10 ** 9
@@ -130,14 +129,3 @@ class SearchStats:
         self.nodes = 0
         self.tt_hits = 0
     def bump(self): self.nodes += 1
-
-def order_moves(board, moves):
-    # moves: list[(worker, move_to, build_to)]
-    def score_move(m):
-        (w, mv, bd) = m
-        r0, c0 = w.pos; r1, c1 = mv
-        h0 = board.grid[(r0,c0)].height; h1 = board.grid[(r1,c1)].height
-        delta = h1 - h0      # climbing is good in Santorini
-        # prefer building next to our worker and capping enemy’s towers later
-        return (delta, h1, -(board.grid[bd].height))
-    return sorted(moves, key=score_move, reverse=True)

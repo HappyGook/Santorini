@@ -88,3 +88,29 @@ def evaluate(board_state, player_id):
     # Weighted combination
     score = (8 * height_advantage) + (2 * mobility) + (6 * proximity) # Change the numbers and check which pass better
     return score
+
+def order_moves(board, moves):
+    def score_move(m):
+        (w, mv, bd) = m
+        r0, c0 = w.pos
+        r1, c1 = mv
+        h0 = board.grid[(r0, c0)].height
+        h1 = board.grid[(r1, c1)].height
+        build_height = board.grid[bd].height
+
+        # Prioritize in order:
+        # 1. Capping enemy towers (height 3 → dome)
+        cap_bonus = 1000 if build_height == 3 else 0
+
+        # 2. Climbing up
+        climb_delta = h1 - h0
+
+        # 3. Being on high ground
+        position_height = h1
+
+        # 4. Building high (deny opponent climbing paths)
+        build_score = build_height * 10
+
+        return (cap_bonus, climb_delta, position_height, build_score)
+
+    return sorted(moves, key=score_move, reverse=True)

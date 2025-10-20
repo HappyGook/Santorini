@@ -1,9 +1,8 @@
 from typing import Tuple, List
-from ai.heuristics import evaluate
+from ai.heuristics import evaluate, order_moves
 from game.config import GameConfig
 from game.moves import move_worker, build_block
 from game.rules import legal_moves, legal_builds
-from functools import lru_cache
 
 # infinity const for evaluation win/lose
 INF = 10 ** 9
@@ -54,7 +53,14 @@ def maxn(board, depth, player_index, game_config, stats, ancestor_index=None, an
             n = len(game_config.player_ids)
             payoff = [-INF] * n
             payoff[player_index] = INF
+            # Add depth penalty/bonus
+            for i in range(n):
+                if i != player_index:
+                    payoff[i] += depth  # Losing later is slightly better
+                else:
+                    payoff[i] -= depth  # Winning sooner is better
             TT[key] = (payoff, action)
+            print(f"[WIN] Player {player_index} wins at depth {depth} after action {action}")
             return payoff, action
 
         build_block(new_board, new_worker, build)
@@ -115,18 +121,3 @@ class SearchStats:
         self.tt_hits = 0
 
     def bump(self): self.nodes += 1
-
-
-def order_moves(board, moves):
-    # moves: list[(worker, move_to, build_to)]
-    def score_move(m):
-        (w, mv, bd) = m
-        r0, c0 = w.pos;
-        r1, c1 = mv
-        h0 = board.grid[(r0, c0)].height;
-        h1 = board.grid[(r1, c1)].height
-        delta = h1 - h0  # climbing is good in Santorini
-        # prefer building next to our worker and capping enemy’s towers later
-        return (delta, h1, -(board.grid[bd].height))
-
-    return sorted(moves, key=score_move, reverse=True)
