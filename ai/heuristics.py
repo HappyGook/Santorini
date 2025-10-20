@@ -86,5 +86,5 @@ def evaluate(board_state, player_id):
     proximity = my_proximity_score - opponent_proximity_score
 
     # Weighted combination
-    score = (5 * height_advantage) + (3 * mobility) + (4 * proximity) # Change the numbers and check which pass better
+    score = (8 * height_advantage) + (2 * mobility) + (6 * proximity) # Change the numbers and check which pass better
     return score
