@@ -1,19 +1,12 @@
 """
-This is a compact convolutional dual-head network (CNN)
+This is a CNN for Santorini, using value-only branch for move eval
 
 Design:
-- Input: (batch, 9, 5, 5)
+- Input: (batch, 9, 5, 5) - board state (6 channels) + action encoding (3 channels)
 - Shared conv trunk -> produces feature maps (batch, filters, 5, 5)
-- Policy head: 1x1 conv -> (batch, 3, 5, 5) logits -> softmax per-channel across 25 positions
-- Value head: small conv(s) + linear -> scalar in (-1, 1) using tanh
-
-Loss helper:
-- policy_and_value_loss(logits, value_pred, targets, policy_coef=1.0, value_coef=1.0)
-  expects targets to contain:
-    - policy_targets: tensor (batch, 3, 25) with one-hot (or probability) targets per channel
-    - value_targets: tensor (batch,) with -1..1 values
+- Value head: conv reduction + linear layers -> scalar in (-1, 1) using tanh
 """
-from typing import Optional, Tuple, Dict
+from typing import Optional, Dict
 
 import torch
 import torch.nn as nn
@@ -37,7 +30,7 @@ class ConvBlock(nn.Module):
 
 class SantoNeuroNet(nn.Module):
     """
-    Dual-head CNN
+    CNN
 
     Args:
         in_channels: input channels--default 9 (more in encode.py)
@@ -63,16 +56,12 @@ class SantoNeuroNet(nn.Module):
             trunk_blocks.append(ConvBlock(filters, filters))
         self.trunk = nn.Sequential(*trunk_blocks)
 
-        # --- Policy head ---
-        # A 1x1 conv that maps the shared filters -> 3 (one per action channel)
-        # Output is logits shaped (batch, 3, 5, 5)
-        self.policy_conv = nn.Conv2d(filters, 3, kernel_size=1, bias=True)
-
         # --- Value head ---
         # Reduce filters via 1x1 conv -> nonlinearity -> flatten -> dense -> scalar
         self.value_conv = nn.Conv2d(filters, filters // 2, kernel_size=1, bias=False)
         self.value_bn = nn.BatchNorm2d(filters // 2)
         self.value_act = nn.ReLU(inplace=True)
+
         # final linear maps flattened (filters//2 * 5 * 5) -> hidden -> scalar
         flat_size = (filters // 2) * 5 * 5
         self.value_fc1 = nn.Linear(flat_size, value_hidden)
@@ -93,23 +82,21 @@ class SantoNeuroNet(nn.Module):
                 if getattr(m, "bias", None) is not None:
                     nn.init.zeros_(m.bias)
 
-    def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Forward pass.
 
         Args:
-            x: (batch, 9, 5, 5) float tensor.
+            x: (batch, 9, 5, 5) float tensor containing:
+               - Channels 0-5: board state (heights 1-3, dome, my workers, opp workers)
+               - Channels 6-8: action encoding (worker pos, move pos, build pos)
 
         Returns:
-            policy_logits: (batch, 3, 5, 5) - raw logits
             value: (batch,) - scalar value in (-1, 1)
         """
         # Shared trunk
         x = self.input_block(x)   # -> (batch, filters, 5, 5)
         x = self.trunk(x)         # -> (batch, filters, 5, 5)
-
-        # Policy head: 1x1 conv -> (batch, 3, 5, 5)
-        policy_logits = self.policy_conv(x)
 
         # Value head
         v = self.value_conv(x)
@@ -119,11 +106,11 @@ class SantoNeuroNet(nn.Module):
         v = functional.relu(self.value_fc1(v))
         v = self.value_fc2(v)
         v = torch.tanh(v).squeeze(dim=1)  # -> (batch,)
-        return policy_logits, v
+        return v
 
-    # --- convenience methods for save/load/predict ---
+    # convenience methods for save/load/predict
 
-    def save_checkpoint(self, path: str, optimizer: Optional[torch.optim.Optimizer] = None, epoch: Optional[int] = None) -> None:
+    def save_checkpoint(self, path: str, optimizer: Optional[torch.optim.Optimizer] = None, epoch: Optional[int] = None,**kwargs) -> None:
         """
         Save model state and optionally optimizer state.
         """
@@ -132,6 +119,7 @@ class SantoNeuroNet(nn.Module):
             payload["optimizer_state"] = optimizer.state_dict()
         if epoch is not None:
             payload["epoch"] = epoch
+        payload.update(kwargs)  # extra data
         torch.save(payload, path)
 
     def load_checkpoint(self, path: str, map_location: Optional[str] = None) -> Dict:
@@ -140,72 +128,71 @@ class SantoNeuroNet(nn.Module):
         """
         data = torch.load(path, map_location=map_location)
         self.load_state_dict(data["model_state"])
-        # Return data so caller may restore optimizer/epoch if desired
         return data
 
-    def predict(self, x: torch.Tensor, softmax_policy: bool = True) -> Tuple[torch.Tensor, torch.Tensor]:
+    @torch.no_grad() #disables gradient calculation
+    def evaluate_actions(self, board_state: torch.Tensor, action_encodings:torch.Tensor) -> torch.Tensor:
         """
-        Convenience inference helper.
+                Evaluate a batch of actions for the same board state.
 
-        Args:
-            x: (batch, 9, 5, 5)
-            softmax_policy: if True, returns per-channel probabilities, else raw logits
+                Args:
+                    board_state: (6, 5, 5) single board state
+                    action_encodings: (num_actions, 3, 5, 5) action encodings
 
-        Returns:
-            policy: if softmax -> (batch, 3, 25) probabilities per channel; else (batch, 3, 5, 5) logits
-            value: between -1 and 1
-        """
+                Returns:
+                    values: (num_actions,) scores for each action
+                """
         self.eval()
-        with torch.no_grad():
-            logits, v = self.forward(x)
-            if softmax_policy:
-                # collapse spatial dims and do softmax per-channel
-                b = logits.shape[0]
-                logits_flat = logits.view(b, 3, 25)  # (batch, 3, 25)
-                # softmax along last dim for each channel independently
-                probs = functional.softmax(logits_flat, dim=2)
-                return probs, v
-            else:
-                return logits, v
+
+        # Expand board state to match number of actions
+        num_actions = action_encodings.size(0)
+        board_batch = board_state.unsqueeze(0).expand(num_actions, -1, -1, -1)
+
+        # Concatenate board + actions
+        inputs = torch.cat([board_batch, action_encodings], dim=1)  # (num_actions, 9, 5, 5)
+
+        # Evaluate
+        values = self.forward(inputs)
+        return values
 
 
-def policy_and_value_loss(
-    policy_logits: torch.Tensor,
+def value_loss(
     value_pred: torch.Tensor,
-    policy_targets: torch.Tensor,
     value_targets: torch.Tensor,
-    policy_coef: float = 1.0,
-    value_coef: float = 1.0,
-) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
+) -> Dict[str, torch.Tensor]:
     """
-    Compute combined policy + value loss.
+    Compute value loss
 
     Args:
-        policy_logits: (batch, 3, 5, 5) raw logits
-        value_pred: (batch,) predicted scalars (already tanh-ed)
-        policy_targets: (batch, 3, 25) one-hot or soft targets per channel
+        value_pred: (batch,) predicted scalars (already tanh in [-1,1])
         value_targets: (batch,) target scalars in [-1,1]
-        policy_coef/value_coef: coefficients to weight losses
+        Supposed to be +1 for good moves, -1 for bad ones, 0 for meh
 
     Returns:
-        total_loss, info dict with components
+        Dict with loss and mean absolute error
     """
-    b = policy_logits.size(0)
-    logits_flat = policy_logits.view(b, 3, 25)         # (b,3,25)
-    # For stability, use log_softmax and negative log likelihood with targets as probabilities:
-    log_probs = functional.log_softmax(logits_flat, dim=2)     # (b,3,25)
-    # policy_targets is expected as float probabilities (one-hot or smoothed)
-    policy_loss_per_channel = - (policy_targets * log_probs).sum(dim=2).mean(dim=0)  # (3,)
-    policy_loss = policy_loss_per_channel.sum()  # sum channels
+    loss = functional.mse_loss(value_pred, value_targets)
+    mae = functional.l1_loss(value_pred, value_targets)
+    return {"loss": loss, "mae": mae.detach()}
 
-    # value loss: MSE between prediction and target
-    value_loss = functional.mse_loss(value_pred, value_targets)
+# Debugging example func
+# Example usage:
+if __name__ == "__main__":
+    # Create model
+    model = SantoNeuroNet(
+        in_channels=9,
+        filters=64,
+        n_conv_blocks=3,
+        value_hidden=128
+    )
 
-    total_loss = policy_coef * policy_loss + value_coef * value_loss
+    print(f"Model parameters: {sum(p.numel() for p in model.parameters()):,}")
 
-    info = {
-        "policy_loss": policy_loss.detach(),
-        "value_loss": value_loss.detach(),
-        "total_loss": total_loss.detach(),
-    }
-    return total_loss, info
+    # Example forward pass
+    batch_size = 16
+    x = torch.randn(batch_size, 9, 5, 5)
+    values = model(x)
+
+    print(f"Input shape: {x.shape}")
+    print(f"Output shape: {values.shape}")
+    print(f"Output range: [{values.min():.3f}, {values.max():.3f}]")
