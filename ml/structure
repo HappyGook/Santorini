@@ -1,0 +1,9 @@
+├── ml/
+│   ├── __init__.py
+│   ├── model.py               # defines network architecture + forward pass
+│   ├── encode.py              # board/action → tensor representation
+│   ├── dataset.py             # dataset generation & augmentation
+│   ├── trainer.py             # handles supervised & RL training loops
+│   ├── inference.py           # easy wrapper for evaluation during gameplay
+│   ├── selfplay.py            # reinforcement data generation via self-play
+│   └── config.py              # constants, hyperparameters, save paths, etc.
