@@ -38,6 +38,14 @@ def maxn(board, depth, player_index, game_config, stats, ancestor_index=None, an
     actions = generate_actions(board, player_id)
     actions = order_moves(board, actions)
 
+    if not actions:
+        n = len(game_config.player_ids)
+        payoff = [0] * n
+        payoff[player_index] = -INF
+        TT[key] = (payoff, None)
+        return payoff, None
+    
+    
     for action in actions:
         worker, move, build = action
         new_board = board.clone()
@@ -53,6 +61,8 @@ def maxn(board, depth, player_index, game_config, stats, ancestor_index=None, an
             n = len(game_config.player_ids)
             payoff = [-INF] * n
             payoff[player_index] = INF
+
+            payoff[player_index] -= depth
             # Add depth penalty/bonus
             for i in range(n):
                 if i != player_index:
