@@ -32,6 +32,13 @@ class Board:
             raise ValueError("Position out of bounds")
         return self.grid[pos]
 
+    def get_worker(self, worker_id: str) -> Worker:
+        """Return the worker with the given id; raises if not found."""
+        for worker in self.workers:
+            if worker.id == worker_id:
+                return worker
+        raise ValueError(f"Worker {worker_id} not found")
+
     def is_occupied(self, pos: Coord) -> bool:
         """True if a worker is on pos."""
         return self.get_cell(pos).worker_id is not None

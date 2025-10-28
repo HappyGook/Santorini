@@ -12,6 +12,7 @@ from PIL import Image, ImageTk
 from pathlib import Path
 from game.config import CELL, MARGIN, COLOR_MOVE, COLOR_BUILD, COLOR_SELECTED, PLAYER_COLORS, PLAYER_IMAGES
 from game.moves import place_worker
+from ml.model import SantoNeuroNet
 
 
 
@@ -95,7 +96,7 @@ def choose_mode_ui() -> Dict[str, Any]:
         ttk.Label(r["frame"], text="Algo").grid(row=0, column=1, sticky="e")
         r["algo"] = ttk.Combobox(
             r["frame"], width=10, state="readonly",
-            values=["minimax", "maxn", "mcts"], textvariable=ai_vars[pid]["algo"]
+            values=["minimax", "maxn", "ml","mcts"], textvariable=ai_vars[pid]["algo"]
         )
         r["algo"].grid(row=0, column=2, padx=4)
 
@@ -157,6 +158,8 @@ def choose_mode_ui() -> Dict[str, Any]:
 
         # build ai dict only for AI players
         ai: Dict[str, Dict[str, Any]] = {}
+        ml_model = None
+        ml_model_loaded = False
         if mode != "pvp":
             if mode == "pvai":
                 ai_players = ["P2"] if num_players == 2 else ["P2", "P3"]
@@ -166,7 +169,15 @@ def choose_mode_ui() -> Dict[str, Any]:
                 algo = ai_vars[pid]["algo"].get()
                 depth = int(ai_vars[pid]["depth"].get())
                 iters = int(ai_vars[pid]["iters"].get()) if algo == "mcts" else None
-                ai[pid] = {"algo": algo, "depth": depth, "iters": iters}
+                if algo == "ml":
+                    # Load the ML model
+                    if not ml_model_loaded:
+                        ml_model = SantoNeuroNet()
+                        ml_model.load_checkpoint("ml/learned_models/best.pt") # Find correct way
+                        ml_model_loaded = True
+                    ai[pid] = {"algo": algo, "depth": depth, "iters": iters, "model": ml_model}
+                else:
+                    ai[pid] = {"algo": algo, "depth": depth, "iters": iters}
 
         selected["val"] = {"num_players": num_players, "mode": mode, "ai": ai}
         root.destroy()
@@ -188,13 +199,9 @@ def build_players(mode_sel, game_config):
     for pid in ids:
         if mode == "pvp":
             players[pid] = {"type": "HUMAN"}
-        elif mode == "pvai":
-            if pid == "P1":
-                players[pid] = {"type": "HUMAN"}
-            else:
-                cfg = ai_cfg.get(pid, {"algo": "minimax", "depth": 3, "iters": None})
-                players[pid] = {"type": "AI", "agent": Agent(pid, **cfg)}
-        else:  # aivai
+        elif mode == "pvai" and pid == "P1":
+            players[pid] = {"type": "HUMAN"}
+        else:
             cfg = ai_cfg.get(pid, {"algo": "minimax", "depth": 3, "iters": None})
             players[pid] = {"type": "AI", "agent": Agent(pid, **cfg)}
     return players

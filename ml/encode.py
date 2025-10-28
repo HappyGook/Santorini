@@ -17,7 +17,7 @@ def encode_board(board, player_id):
     tensor = np.zeros((6, 5, 5), dtype=np.float32)
     for r in range(5):
         for c in range(5):
-            cell = board.cells[r][c]
+            cell = board.grid[(r, c)]
             h = cell.height
             if h!=0:
                 tensor[h-1, r, c] = 1.0 # no flag for height 0, otherwise - 1

@@ -1,8 +1,6 @@
 from typing import List, Tuple
 from game.models import Coord, MAX_LEVEL, DOME_LEVEL
 from game.board import Board
-from collections import Counter
-from game.models import Worker
 from game.config import MAX_WORKERS_PER_PLAYER
 
 

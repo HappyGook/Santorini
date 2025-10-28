@@ -192,6 +192,7 @@ if __name__ == "__main__":
     batch_size = 16
     x = torch.randn(batch_size, 9, 5, 5)
     values = model(x)
+    model.save_checkpoint("learned_models/best.pt")
 
     print(f"Input shape: {x.shape}")
     print(f"Output shape: {values.shape}")

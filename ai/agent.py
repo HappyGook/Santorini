@@ -2,6 +2,10 @@ from __future__ import annotations
 
 import random
 from typing import Optional, Tuple, Literal
+import torch
+from sympy.categories import Object
+from ml.encode import encode_board, encode_action
+from game.rules import all_legal_actions
 
 import ai.minimax as mm
 import ai.maxn as mx
@@ -28,16 +32,19 @@ def make_stats():
 
 
 
-AlgoName = Literal["minimax", "maxn", "mcts"]
+AlgoName = Literal["minimax", "maxn", "mcts","ml"]
 
 class Agent:
-    def __init__(self, player_id: str, algo: AlgoName = "minimax", depth: int =3, iters: Optional[int] = None,rng_seed: Optional[int] = None):
+    def __init__(self, player_id: str, algo: AlgoName = "minimax",
+                 depth: int =3, iters: Optional[int] = None,
+                 rng_seed: Optional[int] = None, model: Optional[Object]=None):
         self.player_id = player_id
         self.depth = depth
         self.rng = random.Random(rng_seed)
         self.algo: AlgoName = algo
+        self.model = model
         self.iters = iters
-        
+
     def decide_action(self, board_state)-> Tuple[float | list[float], Optional[tuple]]:
 
         game_config = board_state.game_config
@@ -70,6 +77,20 @@ class Agent:
                 stats=stats
             )
             eval_value = vector
+
+        elif self.algo == "ml":
+            if self.model is None:
+                raise Exception("A trained model must be passed for 'ml' mode.")
+            legal_actions = all_legal_actions(board_state, player_index)
+            print(f"[DEBUG] Player {self.player_id} legal_actions={legal_actions}")
+            if not legal_actions:
+                raise Exception(f"No legal actions for player {self.player_id} at this board state")
+            board_tensor = encode_board(board_state, player_index)
+            actions_tensor = torch.stack([encode_action(board_state, action, player_index) for action in legal_actions])
+            values = self.model.evaluate_actions(board_tensor, actions_tensor)
+            best_index = torch.argmax(values).item()
+            action = legal_actions[best_index]
+            eval_value = values[best_index].item()
 
         else:  # "mcts"
             # Allow overriding iterations
