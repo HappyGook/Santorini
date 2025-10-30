@@ -91,9 +91,10 @@ def all_legal_actions(board: Board, player: str) -> List[Tuple[Coord, Coord]]:
     Each pair represents a move followed by a build.
     """
     actions = []
-    workers = [w for w in board.workers if w.owner == player]
-    for worker in workers:
-        for move_pos in legal_moves(board, worker.pos):
-            for build_pos in legal_builds(board, move_pos):
-                actions.append((move_pos, build_pos))
+    for worker in board.workers:
+        if worker.owner != player:
+            continue
+        for move in legal_moves(board, worker.pos):
+            for build in legal_builds(board, move):
+                actions.append((worker, move, build))
     return actions
