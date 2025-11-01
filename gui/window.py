@@ -1,7 +1,10 @@
 import tkinter as tk
 from tkinter import ttk
 from typing import Dict, Any
+import os
 
+from ai.heuristics import evaluate
+from ml.dataset import SantoDataset
 from game.board import Board
 from game.config import GameConfig
 from game.models import BOARD_SIZE, Worker
@@ -218,6 +221,15 @@ class SantoriniTk(tk.Tk):
         # Initialize game notation
         self.notation = GameNotation()
 
+        # ---- DATASET THINGIE FOR ML -----
+        dataset_path = "ml/datasets/dataset.npz"
+        if os.path.exists(dataset_path):
+            self.dataset = SantoDataset.load(dataset_path)
+        else:
+            self.dataset = SantoDataset()
+            self.dataset.save(dataset_path)
+        self.dataset_path = dataset_path
+
         w = h = MARGIN * 2 + CELL * BOARD_SIZE
 
         # Main frame to hold board and dialogue side by side
@@ -274,6 +286,21 @@ class SantoriniTk(tk.Tk):
 
         # Start the setup phase immediately
         self.after(50, self.setup_workers)
+
+    # ---------------------------------------------------------------------------
+    # Move recording helper (used for AI + human) (For DATASET)
+    def record_move(self, player_id, worker, move, build, score=None):
+        """Record every move into the dataset with eval"""
+        try:
+            if score is None:
+                # Evaluate current board with heuristic func
+                score = evaluate(self.board, player_id)
+            self.dataset.add_sample(self.board, player_id, (worker, move, build), float(score))
+            self.dataset.save(self.dataset_path)
+            print(f"[DATASET] {player_id}: move recorded with score={score:.3f}")
+        except Exception as e:
+            print(f"[DATASET] Failed to record move: {e}")
+    # ---------------------------------------------------------------------------
 
     def load_images(self):
         #Load & cache all tiles/workers, resized to CELL size
@@ -672,6 +699,8 @@ class SantoriniTk(tk.Tk):
                     self.draw(f"{player}: illegal build")
                     return
 
+                self.record_move(player, self.selected_worker, self.src, rc)
+
                 # Record turn in notation
                 self.notation.record_turn(self.src, self.selected_worker.pos, rc)
 
@@ -739,6 +768,8 @@ class SantoriniTk(tk.Tk):
             self.draw(f"{worker.owner}: illegal build by AI")
             self.game_over = True
             return
+
+        self.record_move(player, worker, move, build, my_score)
 
         # Record turn in notation
         if won:
