@@ -43,7 +43,7 @@ class SantoDataset:
         ds = SantoDataset()
         ds.states = list(data["states"])
         ds.actions = list(data["actions"])
-        ds.scores = list(data["scores"])
+        ds.scores = list(data["values"])
         return ds
 
 

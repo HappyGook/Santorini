@@ -1,30 +1,43 @@
-import torch
+import os
 
+import torch
 from ai.heuristics import evaluate
-from gui.gameplay import GameController
 from game.board import Board
 from ai.agent import Agent
 from ml.encode import make_input_tensor
 from ml.model import SantoNeuroNet, value_loss
 from ml.dataset import SantoDataset
+from game.moves import place_worker
 
 
 def selfplay(controller_class, game_config, num_games: int = 1000):
     ml_model = SantoNeuroNet()
     ml_model.load_checkpoint("learned_models/best.pt")
     optimizer = torch.optim.Adam(ml_model.parameters(), lr=1e-4)
-    dataset = SantoDataset.load("datasets/dataset.npz")
+
+    if os.path.exists("datasets/dataset.npz"):
+        dataset = SantoDataset.load("datasets/dataset.npz")
+    else:
+        dataset = SantoDataset()
 
     for g in range(num_games):
         board = Board(game_config)
-        controller = controller_class(board)
 
-        agents = [Agent(f"P{i+1}", algo="ml", model=ml_model) for i in range(3)]
+        agents = [Agent(f"P{i + 1}", algo="ml", model=ml_model) for i in range(game_config.num_players)]
+
+        players = {
+            agent.player_id: {"type": "AI", "agent": agent}
+            for agent in agents
+        }
+
+        controller = controller_class(board, players, game_config)
 
         # Setup workers properly
         for agent in agents:
             positions = agent.setup_workers(board)
-            controller.place_workers(agent.player_id, positions)
+            for i, pos in enumerate(positions):
+                worker_id = f"{agent.player_id}{'A' if i == 0 else 'B'}"
+                place_worker(board, worker_id, agent.player_id, pos)
 
         game_records =[]
 
@@ -34,13 +47,18 @@ def selfplay(controller_class, game_config, num_games: int = 1000):
         while not board.game_over():
             for agent in agents:
                 ml_score, action = agent.decide_action(board)
-                # Fill dataset with heuristic scores for now, since model hasn't learned it yet
                 heuristic_score = evaluate(board, agent.player_id)
+
+                if action is None:
+                    # no legal moves, skip turn to next
+                    controller.end_turn()
+                    continue
+
+                # Fill dataset with heuristic scores for now, since model hasn't learned it yet
                 worker, move, build = action
 
                 ok_move, won = controller.apply_move(worker, move)
                 if not ok_move:
-                    board.print_board()
                     break
                 controller.apply_build(worker, build)
                 dataset.add_sample(board, agent.player_id, (worker, move, build), float(heuristic_score))
