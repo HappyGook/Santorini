@@ -10,92 +10,95 @@ from ml.dataset import SantoDataset
 from game.moves import place_worker
 
 
-def selfplay(controller_class, game_config, num_games: int = 1000):
+def selfplay(controller_class, game_config, num_games=1000, training_mode="selfplay"):
     ml_model = SantoNeuroNet()
     ml_model.load_checkpoint("learned_models/best.pt")
     optimizer = torch.optim.Adam(ml_model.parameters(), lr=1e-4)
 
-    if os.path.exists("datasets/dataset.npz"):
-        dataset = SantoDataset.load("datasets/dataset.npz")
-    else:
-        dataset = SantoDataset()
+    dataset = SantoDataset.load("datasets/dataset.npz") if os.path.exists("datasets/dataset.npz") else SantoDataset()
 
     for g in range(num_games):
         board = Board(game_config)
 
-        agents = [Agent(f"P{i + 1}", algo="ml", model=ml_model) for i in range(game_config.num_players)]
+        # Guided selfplay in maxn to put good moves in dataset
+        if training_mode == "guided":
+            agents = [Agent(f"P{i+1}", algo="maxn", depth=2) for i in range(game_config.num_players)]
+        else:
+            agents = [Agent(f"P{i+1}", algo="ml", model=ml_model) for i in range(game_config.num_players)]
 
-        players = {
-            agent.player_id: {"type": "AI", "agent": agent}
-            for agent in agents
-        }
-
+        players = {a.player_id: {"type": "AI", "agent": a} for a in agents}
         controller = controller_class(board, players, game_config)
 
-        # Setup workers properly
+        # place workers
         for agent in agents:
             positions = agent.setup_workers(board)
             for i, pos in enumerate(positions):
-                worker_id = f"{agent.player_id}{'A' if i == 0 else 'B'}"
-                place_worker(board, worker_id, agent.player_id, pos)
+                place_worker(board, f"{agent.player_id}{'A' if i == 0 else 'B'}", agent.player_id, pos)
+            print(f"{agent.player_id} setup positions: {positions}")
 
-        game_records =[]
 
+
+        game_records = []
         winner = None
+        game_over = False
+        turn_count = 0
 
-        # Play game
-        while not board.game_over():
+        while not game_over and not board.game_over() and turn_count < 500:
             for agent in agents:
+                # In guided maxn
+                # In selfplay model
                 ml_score, action = agent.decide_action(board)
                 heuristic_score = evaluate(board, agent.player_id)
 
-                if action is None:
-                    # no legal moves, skip turn to next
+                if not action:
                     controller.end_turn()
                     continue
 
-                # Fill dataset with heuristic scores for now, since model hasn't learned it yet
                 worker, move, build = action
-
                 ok_move, won = controller.apply_move(worker, move)
                 if not ok_move:
                     break
                 controller.apply_build(worker, build)
+
                 dataset.add_sample(board, agent.player_id, (worker, move, build), float(heuristic_score))
                 game_records.append((board.clone(), action, agent.player_id, float(heuristic_score)))
                 controller.end_turn()
+
                 if won or board.game_over():
                     winner = agent.player_id
+                    print(f"[GAME OVER] {winner} wins, stopping selfplay loop")
+                    game_over = True
                     break
 
-        # Save dataset once per game
-        dataset.save("datasets/dataset.npz")
+            if winner is not None or game_over:
+                break
 
+            print("Workers after turn:", board.workers)
+            turn_count += 1
 
-        # Backpropagation: compute rewards to update model
-        rewards = {}
+        dataset.save("datasets/selfplay_data.npz")
 
-        for agent in agents:
-            rewards[agent.player_id] = 1.0 if winner == agent.player_id else -1.0
+        # backprop only in selfplay mode
+        if training_mode == "selfplay":
+            rewards = {a.player_id: (1.0 if winner == a.player_id else -1.0) for a in agents}
 
-        states = []
-        targets = []
-        for board, action, player_id, heuristic in game_records:
-            reward = rewards[player_id]
-            state_tensor = torch.tensor(make_input_tensor(board,player_id,action), dtype=torch.float32).unsqueeze(0)
-            target_tensor = torch.tensor([reward], dtype=torch.float32)
-            states.append(state_tensor)
-            targets.append(target_tensor)
+            states, targets = [], []
+            for board, action, pid, heuristic in game_records:
+                reward = rewards[pid]
+                state_tensor = torch.tensor(make_input_tensor(board, pid, action), dtype=torch.float32).unsqueeze(0)
+                target_tensor = torch.tensor([reward], dtype=torch.float32)
+                states.append(state_tensor)
+                targets.append(target_tensor)
 
-        states = torch.cat(states)
-        targets = torch.cat(targets)
+            states = torch.cat(states)
+            targets = torch.cat(targets)
 
-        ml_model.train()
-        optimizer.zero_grad()
-        preds = ml_model(states)
-        loss_dict = value_loss(preds, targets)
-        loss_dict["loss"].backward()
-        optimizer.step()
+            ml_model.train()
+            optimizer.zero_grad()
+            preds = ml_model(states)
+            loss_dict = value_loss(preds, targets)
+            loss_dict["loss"].backward()
+            optimizer.step()
 
         if g % 10 == 0:
             ml_model.save_checkpoint("learned_models/best.pt", optimizer=optimizer, epoch=g)

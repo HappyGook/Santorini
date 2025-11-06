@@ -16,13 +16,14 @@ class SantoDataset:
         self.actions.append(action_tensor)
         score = min(1, max(-1, score/10))
         self.scores.append(score)
+        print(f"[DEBUG] state_tensor shape: {state_tensor.shape}\n action_tensor shape: {action_tensor.shape}")  # (11,5,5) + (3,5,5)
 
     def save(self, path):
         if len(self.states) == 0:
             # Avoiding empty stack with placeholders
             np.savez_compressed(
                 path,
-                states=np.zeros((0, 6, 5, 5), dtype=np.float32),
+                states=np.zeros((0, 11, 5, 5), dtype=np.float32),
                 actions=np.zeros((0, 3, 5, 5), dtype=np.float32),
                 values=np.zeros((0,), dtype=np.float32),
             )

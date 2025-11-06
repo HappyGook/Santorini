@@ -1,6 +1,100 @@
 import numpy as np
+import random
 
-def inspect_dataset(path, n=5):
+
+def decode_action(action_tensor):
+    """
+    Decode action tensor back to readable format.
+    Returns: (worker_pos, move_pos, build_pos) or None if no action
+    """
+    if action_tensor.shape != (3, 5, 5):
+        return None
+
+    # Find positions where action > 0 in each channel
+    worker_positions = np.argwhere(action_tensor[0] > 0)
+    move_positions = np.argwhere(action_tensor[1] > 0)
+    build_positions = np.argwhere(action_tensor[2] > 0)
+
+    if len(worker_positions) == 1 and len(move_positions) == 1 and len(build_positions) == 1:
+        worker_pos = tuple(worker_positions[0])
+        move_pos = tuple(move_positions[0])
+        build_pos = tuple(build_positions[0])
+        return worker_pos, move_pos, build_pos
+
+    return None
+
+
+def get_current_player(state_tensor, r, c):
+    """Get current player at position (r, c) from the active player flag (channel 10)"""
+    if state_tensor[10, r, c] > 0:
+        return True
+    return False
+
+
+def render_board_ascii(state_tensor):
+    """
+    Render 5x5 board state as ASCII with improved spacing.
+    Format: height + worker info (e.g., "3", "0", "1 P1A")
+    Returns: (board_ascii, current_worker_info) tuple
+    """
+    board_lines = []
+    current_worker_info = None
+
+    for r in range(5):
+        row_str = "|"
+        for c in range(5):
+            # Get height (channels 0-3 for heights 1-4, dome implied by channel 3)
+            height = 0
+            for h in range(1, 4):  # heights 1, 2, 3
+                if state_tensor[h - 1, r, c] > 0:
+                    height = h
+            if state_tensor[3, r, c] > 0:  # dome
+                height = 4
+
+            # Get worker info
+            worker_info = ""
+            is_current_player = get_current_player(state_tensor, r, c)
+
+            # Check each player's workers
+            for player, channels in [("P1", [4, 5]), ("P2", [6, 7]), ("P3", [8, 9])]:
+                for i, ch in enumerate(channels):
+                    if state_tensor[ch, r, c] > 0:
+                        worker_id = f"{player}{'A' if i == 0 else 'B'}"
+                        worker_info = f" {worker_id}"
+                        if is_current_player:
+                            current_worker_info = f"Current worker: {worker_id} at position ({r},{c})"
+                        break
+                if worker_info:
+                    break
+
+            cell_str = f" {height}{worker_info}".ljust(10)  # Add padding for better spacing
+            row_str += cell_str
+
+        board_lines.append(row_str)
+
+    return "\n".join(board_lines), current_worker_info
+
+
+def get_overall_current_player(state_tensor):
+    """Determine which player is currently active based on the active player flag"""
+    active_positions = np.argwhere(state_tensor[10] > 0)
+
+    if len(active_positions) == 0:
+        return "Unknown"
+
+    # Check first active position to determine player
+    r, c = active_positions[0]
+
+    # Check which player has a worker at this position
+    for player, channels in [("P1", [4, 5]), ("P2", [6, 7]), ("P3", [8, 9])]:
+        for ch in channels:
+            if state_tensor[ch, r, c] > 0:
+                return player
+
+    return "Unknown"
+
+
+def inspect_dataset(path, n_samples=5, n_visual=4):
     data = np.load(path)
     keys = list(data.keys())
     print(f"Keys: {keys}")
@@ -9,99 +103,119 @@ def inspect_dataset(path, n=5):
     for key in keys:
         print(f"{key} shape: {data[key].shape}")
 
-    # Determine total samples (assuming first dimension)
+    # Determine total samples
     total_samples = None
     for key in keys:
         if len(data[key].shape) > 0:
             total_samples = data[key].shape[0]
             break
+
     if total_samples is not None:
         print(f"Total samples: {total_samples}")
     else:
         print("Total samples: Unknown")
+        return
 
-    # If 'values' exist, print min, max, mean
+    # Print min, max, mean for values
     if 'values' in data:
         values = data['values']
         print(f"Values stats - min: {values.min():.6f}, max: {values.max():.6f}, mean: {values.mean():.6f}")
     else:
         print("No 'values' key found.")
 
-    print("\nSample data:")
-    for i in range(min(n, total_samples if total_samples is not None else 0)):
+    # Print min, max, mean for states
+    if 'states' in data:
+        states = data['states']
+        print(f"States stats - min: {states.min():.6f}, max: {states.max():.6f}, mean: {states.mean():.6f}")
+
+    # Print min, max, mean for actions
+    if 'actions' in data:
+        actions = data['actions']
+        print(f"Actions stats - min: {actions.min():.6f}, max: {actions.max():.6f}, mean: {actions.mean():.6f}")
+
+    print(f"\n{'=' * 80}")
+    print(f"VISUAL BOARD INSPECTION - {n_visual} Random Samples")
+    print(f"{'=' * 80}")
+
+    # Select random samples for visual inspection
+    if total_samples > 0:
+        random_indices = random.sample(range(total_samples), min(n_visual, total_samples))
+
+        for i, idx in enumerate(random_indices):
+            print(f"\n--- Sample {i + 1} (index {idx}) ---")
+
+            # Get current player
+            current_player = "Unknown"
+            if 'states' in data:
+                state = data['states'][idx]
+                current_player = get_overall_current_player(state)
+
+            print(f"Current Player: {current_player}")
+
+            # Render board
+            if 'states' in data:
+                print("Board State:")
+                board_ascii, current_worker_info = render_board_ascii(data['states'][idx])
+                print(board_ascii)
+                if current_worker_info:
+                    print(current_worker_info)
+
+            # Decode and display action
+            if 'actions' in data:
+                action_info = decode_action(data['actions'][idx])
+                if action_info:
+                    worker_pos, move_pos, build_pos = action_info
+                    print(
+                        f"Action: ({worker_pos[0]},{worker_pos[1]})->({move_pos[0]},{move_pos[1]}), ({build_pos[0]},{build_pos[1]})")
+                else:
+                    print("Action: Unable to decode")
+
+            # Show value
+            if 'values' in data:
+                print(f"Value: {data['values'][idx]:.6f}")
+
+            print()
+
+    print("\nBasic sample inspection:")
+    for i in range(min(n_samples, total_samples if total_samples is not None else 0)):
         print(f"Sample {i}:")
-        # Show state summary if exists
+
+        # Show state summary
         if 'states' in data:
             state = data['states'][i]
-            if state.ndim == 1:
-                length = state.shape[0]
-                root = int(np.sqrt(length))
-                if root * root == length:
-                    state_reshaped = state.reshape(root, root, -1) if state.size % (root*root) == 0 else state.reshape(root, root)
-                else:
-                    state_reshaped = None
-            elif state.ndim == 2 or state.ndim == 3:
-                state_reshaped = state
-            else:
-                state_reshaped = None
+            print(f"  state: shape={state.shape}")
 
-            if state_reshaped is not None:
-                # Attempt to detect agent positions from last 3 channels if possible
-                if state_reshaped.ndim == 3 and state_reshaped.shape[2] >= 3:
-                    player1_channel = state_reshaped[:, :, -3]
-                    player2_channel = state_reshaped[:, :, -2]
-                    player3_channel = state_reshaped[:, :, -1]
+            # Show player positions using the encoding channels
+            if state.shape == (11, 5, 5):
+                for player, channels in [("P1", [4, 5]), ("P2", [6, 7]), ("P3", [8, 9])]:
+                    positions = []
+                    for j, ch in enumerate(channels):
+                        worker_positions = np.argwhere(state[ch] > 0)
+                        for pos in worker_positions:
+                            worker_id = f"{player}{'A' if j == 0 else 'B'}"
+                            positions.append(f"{worker_id}({pos[0]},{pos[1]})")
 
-                    p1_positions = np.argwhere(player1_channel > 0)
-                    p2_positions = np.argwhere(player2_channel > 0)
-                    p3_positions = np.argwhere(player3_channel > 0)
+                    if positions:
+                        print(f"    {player} positions: {', '.join(positions)}")
+                    else:
+                        print(f"    {player} positions: None")
 
-                    p1_pos_str = ', '.join([f"({r},{c})" for r, c in p1_positions]) if p1_positions.size > 0 else "None"
-                    p2_pos_str = ', '.join([f"({r},{c})" for r, c in p2_positions]) if p2_positions.size > 0 else "None"
-                    p3_pos_str = ', '.join([f"({r},{c})" for r, c in p3_positions]) if p3_positions.size > 0 else "None"
-
-                    print(f"  state: shape={state_reshaped.shape}")
-                    print(f"    Player 1 positions: {p1_pos_str}")
-                    print(f"    Player 2 positions: {p2_pos_str}")
-                    print(f"    Player 3 positions: {p3_pos_str}")
-                    # Note: Missing positions may indicate a worker placement or encoding issue.
-                elif state_reshaped.ndim == 2:
-                    # If 2D, just print shape and basic stats
-                    print(f"  state: shape={state_reshaped.shape}, min={state_reshaped.min():.4f}, max={state_reshaped.max():.4f}")
-                else:
-                    print(f"  state: shape={state_reshaped.shape}")
-            else:
-                print(f"  state: shape={state.shape} (unable to reshape or interpret)")
-        else:
-            print("  No 'states' key found.")
-
-        # Show action summary if exists
+        # Show action summary
         if 'actions' in data:
             action = data['actions'][i]
-            # Detect action coordinates where action > 0
-            if isinstance(action, np.ndarray):
-                action_coords = np.argwhere(action > 0)
-                if action_coords.size > 0:
-                    if action.ndim == 3:
-                        coords_str = ', '.join([f"(ch={ch}, r={r}, c={c})" for ch, r, c in action_coords])
-                    elif action.ndim == 2:
-                        coords_str = ', '.join([f"({r},{c})" for r, c in action_coords])
-                    else:
-                        coords_str = str(action_coords)
-                    print(f"  action: positions with action > 0: {coords_str}")
-                else:
-                    print("  action: no positions with action > 0")
+            action_info = decode_action(action)
+            if action_info:
+                worker_pos, move_pos, build_pos = action_info
+                print(
+                    f"  action: ({worker_pos[0]},{worker_pos[1]})->({move_pos[0]},{move_pos[1]}), ({build_pos[0]},{build_pos[1]})")
             else:
-                print(f"  action: {action}")
-        else:
-            print("  No 'actions' key found.")
+                print(f"  action: shape={action.shape} (unable to decode)")
 
-        # Show value if exists
+        # Show value
         if 'values' in data:
             print(f"  value: {data['values'][i]:.6f}")
-        else:
-            print("  No 'values' key found.")
         print()
 
 
-inspect_dataset("dataset.npz")
+if __name__ == "__main__":
+    inspect_dataset("selfplay_data.npz")

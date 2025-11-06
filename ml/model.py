@@ -41,7 +41,7 @@ class SantoNeuroNet(nn.Module):
 
     def __init__(
         self,
-        in_channels: int = 9,
+        in_channels: int = 14,
         filters: int = 64,
         n_conv_blocks: int = 3,
         value_hidden: int = 128,
@@ -149,7 +149,7 @@ class SantoNeuroNet(nn.Module):
         board_batch = board_state.unsqueeze(0).expand(num_actions, -1, -1, -1)
 
         # Concatenate board + actions
-        inputs = torch.cat([board_batch, action_encodings], dim=1)  # (num_actions, 9, 5, 5)
+        inputs = torch.cat([board_batch, action_encodings], dim=1)  # (num_actions, 14, 5, 5)
 
         # Evaluate
         values = self.forward(inputs)
@@ -180,7 +180,7 @@ def value_loss(
 if __name__ == "__main__":
     # Create model
     model = SantoNeuroNet(
-        in_channels=9,
+        in_channels=14,
         filters=64,
         n_conv_blocks=3,
         value_hidden=128
@@ -189,8 +189,8 @@ if __name__ == "__main__":
     print(f"Model parameters: {sum(p.numel() for p in model.parameters()):,}")
 
     # Example forward pass
-    batch_size = 16
-    x = torch.randn(batch_size, 9, 5, 5)
+    batch_size = 1
+    x = torch.randn(batch_size, 14, 5, 5)
     values = model(x)
     model.save_checkpoint("learned_models/best.pt")
 

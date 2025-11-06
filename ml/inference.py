@@ -16,7 +16,7 @@ def ml_inference(board_state, player_index, model, stats):
 
     logging.debug(f"[ML-Inference] Example action: {legal_actions[0] if legal_actions else 'None'}")
 
-    board_tensor = torch.from_numpy(encode_board(board_state, player_index))
+    board_tensor = torch.from_numpy(encode_board(board_state, active_player_id=player_id))
     actions_tensor = torch.stack([
         torch.from_numpy(encode_action(*action)) for action in legal_actions
     ])

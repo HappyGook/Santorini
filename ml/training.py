@@ -5,4 +5,4 @@ from ml.selfplay import selfplay
 
 controller = GameController
 config = GameConfig(num_players=3)
-selfplay(controller, config, 1)
+selfplay(controller, config, 1, "guided")

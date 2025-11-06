@@ -47,7 +47,6 @@ def encode_action(worker, move, build):
     return tensor
 
 def make_input_tensor(board, active_player_id, action):
-    print({pid: len(ws) for pid, ws in board.workers.items()})
     board_t = encode_board(board, active_player_id)
     action_t = encode_action(*action)
     return np.concatenate([board_t, action_t], axis=0)  # (14,5,5)
