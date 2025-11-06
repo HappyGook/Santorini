@@ -7,14 +7,15 @@ Flag structure:
 1 - height 2
 2 - height 3
 3 - dome
-4 - my worker
-5 - opponent worker
-
+4 - 5 - P1 workers
+6 - 7 - P2 workers
+8 - 9 - P3 workers
+10 - Active player
 Height 0 is skipped, because if all height flags are 0, then deduce
 '''
 
-def encode_board(board, player_id):
-    tensor = np.zeros((6, 5, 5), dtype=np.float32)
+def encode_board(board, active_player_id):
+    tensor = np.zeros((11, 5, 5), dtype=np.float32)
     for r in range(5):
         for c in range(5):
             cell = board.grid[(r, c)]
@@ -23,10 +24,19 @@ def encode_board(board, player_id):
                 tensor[h-1, r, c] = 1.0 # no flag for height 0, otherwise - 1
             if cell.worker_id:
                 w = board.get_worker(cell.worker_id)
-                if w.owner == player_id:
-                    tensor[4, r, c] = 1.0
-                else:
-                    tensor[5, r, c] = 1.0
+                ch = 0
+                if w.owner == "P1":
+                    ch = 4 if w.id.endswith("A") else 5
+                elif w.owner == "P2":
+                    ch = 6 if w.id.endswith("A") else 7
+                elif w.owner == "P3":
+                    ch = 8 if w.id.endswith("A") else 9
+                tensor[ch, r, c] = 1.0
+
+                # active player flag
+                if w.owner == active_player_id:
+                    tensor[10, r, c] = 1.0
+
     return tensor
 
 def encode_action(worker, move, build):
@@ -36,7 +46,8 @@ def encode_action(worker, move, build):
     tensor[2, build[0], build[1]] = 1.0
     return tensor
 
-def make_input_tensor(board, player_id, action):
-    board_t = encode_board(board, player_id)
+def make_input_tensor(board, active_player_id, action):
+    print({pid: len(ws) for pid, ws in board.workers.items()})
+    board_t = encode_board(board, active_player_id)
     action_t = encode_action(*action)
-    return np.concatenate([board_t, action_t], axis=0)  # (9,5,5)
+    return np.concatenate([board_t, action_t], axis=0)  # (14,5,5)
