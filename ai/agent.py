@@ -79,11 +79,11 @@ class Agent:
             value, best_action = rust.run_mcts_python_rules(
                 board_state,
                 player_index=player_index,
-                iterations=self.iters or 200
+                iterations=self.iters or 400
             )
 
-        eval_value = value
-        action = best_action
+            eval_value = value
+            action = best_action
 
         print(f"[{self.player_id}][{self.algo}] nodes={stats.nodes} tt_hits={stats.tt_hits}")
 

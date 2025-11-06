@@ -3,8 +3,8 @@ from copy import deepcopy
 from game.models import BOARD_SIZE
 from game.rules import legal_moves, legal_builds, is_win_after_move
 from game.moves import move_worker, build_block
-from ai.heuristics import evaluate as heuristic_evaluate
-
+from ai.heuristics import evaluate_mcts
+from game.models import MAX_LEVEL
 Action = Tuple[object, Tuple[int, int], Tuple[int, int]]
 
 
@@ -71,19 +71,16 @@ def is_terminal(board, player_index:int) ->bool:
     for worker in board.workers:
         src =  worker.pos
 
-        for dr in (-1, 0, 1):
-            for dc in (-1, 0, 1):
-                if dr == 0 and dc == 0:
-                    continue
-                r, c = src[0] + dr, src[1] + dc
-                if 0 <= r < BOARD_SIZE and 0 <= c < BOARD_SIZE:
-                    dst = (r, c)
-                    if is_win_after_move(board, src, dst):
-                        return True
+        for worker in board.workers:
+            if worker.pos is None:
+                continue
+        cell = board.get_cell(worker.pos)
+        if cell.height == MAX_LEVEL:
+            return True
     return False
 
 
 def evaluate_board(board, root_player_index: int) -> float:
-#Evaluate the board state from the perspective of root_player_index
+#Evaluate the board state 
 
-    return float(heuristic_evaluate(board, root_player_index))
+    return float(evaluate_mcts(board, root_player_index))

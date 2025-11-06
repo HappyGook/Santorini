@@ -47,7 +47,11 @@ class GameConfig:
 
     def get_player_id(self, index: int) -> str:
         """Convert index to player ID string"""
-        return self.player_ids[index]
+        if not self.player_ids:
+            raise RuntimeError("GameConfig.player_ids is empty")
+
+        idx = index % len(self.player_ids)
+        return self.player_ids[idx]
 
     def get_player_index(self, player_id: str) -> int:
         """Convert player ID string to index"""
