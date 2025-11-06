@@ -1,0 +1,11 @@
+# Rust build artifacts
+/target/
+/Cargo.lock
+*.pdb
+*.exe
+*.dll
+*.dylib
+*.so
+
+# Maturin build output
+*.whl
