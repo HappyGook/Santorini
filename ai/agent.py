@@ -29,7 +29,7 @@ def make_stats():
 
 
 
-AlgoName = Literal["minimax", "maxn", "mcts"]
+AlgoName = Literal["minimax", "maxn", "mcts","rust_mcts"]
 
 class Agent:
     def __init__(self, player_id: str, algo: AlgoName = "minimax", depth: int =3, iters: Optional[int] = None,rng_seed: Optional[int] = None):
@@ -72,18 +72,31 @@ class Agent:
             )
             eval_value = vector
 
-        else:  # "mcts"
-            # Allow overriding iterations
+        elif self.algo == "rust_mcts":
+    
             print(f"[{self.player_id}] using Rust hybrid MCTS ...")
 
             value, best_action = rust.run_mcts_python_rules(
                 board_state,
                 player_index=player_index,
-                iterations=self.iters or 400
+                iterations=self.iters or 1000
             )
 
             eval_value = value
             action = best_action
+
+
+        else:  # "mcts"
+            # Allow overriding iterations
+            vector, action = mc.mcts(
+                board_state,
+                player_index=player_index,
+                game_config=game_config,
+                iters=self.iters,
+                depth=self.depth,
+                stats=stats
+            )
+            eval_value = vector
 
         print(f"[{self.player_id}][{self.algo}] nodes={stats.nodes} tt_hits={stats.tt_hits}")
 

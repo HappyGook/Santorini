@@ -95,7 +95,7 @@ def choose_mode_ui() -> Dict[str, Any]:
         ttk.Label(r["frame"], text="Algo").grid(row=0, column=1, sticky="e")
         r["algo"] = ttk.Combobox(
             r["frame"], width=10, state="readonly",
-            values=["minimax", "maxn", "mcts"], textvariable=ai_vars[pid]["algo"]
+            values=["minimax", "maxn", "mcts","rust_mcts"], textvariable=ai_vars[pid]["algo"]
         )
         r["algo"].grid(row=0, column=2, padx=4)
 
@@ -104,7 +104,7 @@ def choose_mode_ui() -> Dict[str, Any]:
         r["depth"].grid(row=0, column=4, padx=4)
 
         ttk.Label(r["frame"], text="Iters (MCTS)").grid(row=0, column=5, sticky="e")
-        r["iters"] = ttk.Spinbox(r["frame"], from_=50, to=5000, increment=50, width=7, textvariable=ai_vars[pid]["iters"])
+        r["iters"] = ttk.Spinbox(r["frame"], from_=50, to=2000, increment=50, width=7, textvariable=ai_vars[pid]["iters"])
         r["iters"].grid(row=0, column=6, padx=4)
 
         rows[pid] = r
@@ -136,8 +136,7 @@ def choose_mode_ui() -> Dict[str, Any]:
                 # toggle iters from algo
                 algo = ai_vars[pid]["algo"].get()
                 rows[pid]["iters"].config(
-                    state="normal" if (is_ai and algo == "mcts") else "disabled"
-                )
+                    state="normal" if (is_ai and algo in ("mcts", "rust_mcts")) else "disabled")
             else:
                 frame.grid_remove()
 
