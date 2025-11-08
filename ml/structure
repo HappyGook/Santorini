@@ -8,5 +8,6 @@
 │   ├── selfplay.py            # reinforcement data generation via self-play
 │   └── config.py              # constants, hyperparameters, save paths, etc.
 
-TODO: Check if encoding is deterministic
-TODO: Symmetry test after one game
+Check if encoding is deterministic -- IT IS
+Symmetry test after one game -- PASSED
+TODO: More test needed before learning? Perspective test, etc?

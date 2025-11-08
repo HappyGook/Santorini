@@ -84,8 +84,9 @@ def selfplay(controller_class, game_config, num_games=1000, training_mode="selfp
             rewards = {a.player_id: (1.0 if winner == a.player_id else -1.0) for a in agents}
 
             states, targets = [], []
-            for board, action, pid, heuristic in game_records:
-                reward = rewards[pid]
+            gamma = 0.9 # Temporal decay so we reinforce better
+            for i, (board, action, pid, heuristic) in enumerate(reversed(game_records)):
+                reward = rewards[pid] * (gamma ** i)
                 state_tensor = torch.tensor(make_input_tensor(board, pid, action), dtype=torch.float32).unsqueeze(0)
                 target_tensor = torch.tensor([reward], dtype=torch.float32)
                 states.append(state_tensor)
