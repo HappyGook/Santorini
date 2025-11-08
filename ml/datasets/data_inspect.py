@@ -123,16 +123,6 @@ def inspect_dataset(path, n_samples=5, n_visual=4):
     else:
         print("No 'values' key found.")
 
-    # Print min, max, mean for states
-    if 'states' in data:
-        states = data['states']
-        print(f"States stats - min: {states.min():.6f}, max: {states.max():.6f}, mean: {states.mean():.6f}")
-
-    # Print min, max, mean for actions
-    if 'actions' in data:
-        actions = data['actions']
-        print(f"Actions stats - min: {actions.min():.6f}, max: {actions.max():.6f}, mean: {actions.mean():.6f}")
-
     print(f"\n{'=' * 80}")
     print(f"VISUAL BOARD INSPECTION - {n_visual} Random Samples")
     print(f"{'=' * 80}")
@@ -218,4 +208,4 @@ def inspect_dataset(path, n_samples=5, n_visual=4):
 
 
 if __name__ == "__main__":
-    inspect_dataset("selfplay_data.npz")
+    inspect_dataset("guided_games.npz")

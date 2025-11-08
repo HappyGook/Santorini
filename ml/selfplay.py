@@ -10,12 +10,12 @@ from ml.dataset import SantoDataset
 from game.moves import place_worker
 
 
-def selfplay(controller_class, game_config, num_games=1000, training_mode="selfplay"):
+def selfplay(controller_class, game_config, model_path, dataset_path, num_games=1000, training_mode="selfplay"):
     ml_model = SantoNeuroNet()
-    ml_model.load_checkpoint("learned_models/best.pt")
+    ml_model.load_checkpoint(model_path)
     optimizer = torch.optim.Adam(ml_model.parameters(), lr=1e-4)
 
-    dataset = SantoDataset.load("datasets/dataset.npz") if os.path.exists("datasets/dataset.npz") else SantoDataset()
+    dataset = SantoDataset.load(dataset_path) if os.path.exists(dataset_path) else SantoDataset()
 
     for g in range(num_games):
         board = Board(game_config)
@@ -77,7 +77,7 @@ def selfplay(controller_class, game_config, num_games=1000, training_mode="selfp
             print("Workers after turn:", board.workers)
             turn_count += 1
 
-        dataset.save("datasets/selfplay_data.npz")
+        dataset.save(dataset_path)
 
         # backprop only in selfplay mode
         if training_mode == "selfplay":
@@ -103,4 +103,4 @@ def selfplay(controller_class, game_config, num_games=1000, training_mode="selfp
             optimizer.step()
 
         if g % 10 == 0:
-            ml_model.save_checkpoint("learned_models/best.pt", optimizer=optimizer, epoch=g)
+            ml_model.save_checkpoint(model_path, optimizer=optimizer, epoch=g)
