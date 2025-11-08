@@ -60,6 +60,7 @@ def selfplay(controller_class, game_config, num_games=1000, training_mode="selfp
                     break
                 controller.apply_build(worker, build)
 
+                print(f"[SELFPLAY'S DEBUG] Score to be saved on this turn: {heuristic_score}")
                 dataset.add_sample(board, agent.player_id, (worker, move, build), float(heuristic_score))
                 game_records.append((board.clone(), action, agent.player_id, float(heuristic_score)))
                 controller.end_turn()
