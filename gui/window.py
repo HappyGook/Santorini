@@ -176,7 +176,7 @@ def choose_mode_ui() -> Dict[str, Any]:
                     # Load the ML model
                     if not ml_model_loaded:
                         ml_model = SantoNeuroNet()
-                        ml_model.load_checkpoint("ml/learned_models/best.pt") # Find correct way
+                        ml_model.load_checkpoint("ml/learned_models/guided_model.pt") # Find correct way
                         ml_model_loaded = True
                     ai[pid] = {"algo": algo, "depth": depth, "iters": iters, "model": ml_model}
                 else:

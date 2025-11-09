@@ -10,4 +10,22 @@
 
 Check if encoding is deterministic -- IT IS
 Symmetry test after one game -- PASSED
-TODO: More test needed before learning? Perspective test, etc?
+
+┌─────────┬─────────────────┬──────────────┬─────────────────┬──────────────────┐
+│ Phase   │ Training Mode   │ Games/Steps  │ Key Metrics     │ Expected Outcome │
+├─────────┼─────────────────┼──────────────┼─────────────────┼──────────────────┤
+│ 1       │ Guided          │ 500-1000     │ Dataset size    │ Good move        │
+│         │ (MaxN depth=2)  │ games        │ Move diversity  │ examples         │
+├─────────┼─────────────────┼──────────────┼─────────────────┼──────────────────┤
+│ 2       │ Supervised      │ 50-200       │ Loss < 0.1      │ Basic position   │
+│         │ Learning        │ epochs       │ MAE < 0.2       │ evaluation       │
+├─────────┼─────────────────┼──────────────┼─────────────────┼──────────────────┤
+│ 3       │ Selfplay        │ 100-500      │ Loss: 0.05-0.15 │ Self-improvement │
+│         │ Bootstrap       │ games        │ Game length     │ begins           │
+├─────────┼─────────────────┼──────────────┼─────────────────┼──────────────────┤
+│ 4       │ Selfplay        │ 1000-5000    │ Win rate vs     │ Strong tactical  │
+│         │ Improvement     │ games        │ baseline        │ play             │
+├─────────┼─────────────────┼──────────────┼─────────────────┼──────────────────┤
+│ 5       │ Fine-tuning     │ 500-1000     │ Avg game        │ Consistent       │
+│         │ & Stabilization │ games        │ length < 100    │ strong play      │
+└─────────┴─────────────────┴──────────────┴─────────────────┴──────────────────┘

@@ -16,6 +16,8 @@ def selfplay(controller_class, game_config, model_path, dataset_path, num_games=
     optimizer = torch.optim.Adam(ml_model.parameters(), lr=1e-4)
 
     dataset = SantoDataset.load(dataset_path) if os.path.exists(dataset_path) else SantoDataset()
+    # Training progress tracking
+    training_log = []
 
     for g in range(num_games):
         board = Board(game_config)
@@ -42,6 +44,7 @@ def selfplay(controller_class, game_config, model_path, dataset_path, num_games=
         winner = None
         game_over = False
         turn_count = 0
+        game_ml_scores = []  # Track ML scores for the game
 
         while not game_over and not board.game_over() and turn_count < 500:
             for agent in agents:
@@ -49,6 +52,10 @@ def selfplay(controller_class, game_config, model_path, dataset_path, num_games=
                 # In selfplay model
                 ml_score, action = agent.decide_action(board)
                 heuristic_score = evaluate(board, agent.player_id)
+                
+                # Track ML scores during game
+                if ml_score is not None:
+                    game_ml_scores.append(ml_score)
 
                 if not action:
                     controller.end_turn()
@@ -79,6 +86,16 @@ def selfplay(controller_class, game_config, model_path, dataset_path, num_games=
 
         dataset.save(dataset_path)
 
+        # Training metrics for this game
+        game_metrics = {
+            'game': g,
+            'winner': winner,
+            'turns': turn_count,
+            'mean_ml_score': sum(game_ml_scores) / len(game_ml_scores) if game_ml_scores else 0.0,
+            'ml_score_std': torch.tensor(game_ml_scores).std().item() if len(game_ml_scores) > 1 else 0.0,
+            'num_moves': len(game_records)
+        }
+
         # backprop only in selfplay mode
         if training_mode == "selfplay":
             rewards = {a.player_id: (1.0 if winner == a.player_id else -1.0) for a in agents}
@@ -100,7 +117,59 @@ def selfplay(controller_class, game_config, model_path, dataset_path, num_games=
             preds = ml_model(states)
             loss_dict = value_loss(preds, targets)
             loss_dict["loss"].backward()
+            
+            # Compute gradient norm for monitoring
+            total_grad_norm = 0.0
+            for param in ml_model.parameters():
+                if param.grad is not None:
+                    total_grad_norm += param.grad.data.norm(2).item() ** 2
+            total_grad_norm = total_grad_norm ** 0.5
+
             optimizer.step()
+            
+            # Add training metrics
+            game_metrics.update({
+                'loss': loss_dict["loss"].item(),
+                'mae': loss_dict["mae"].item(),
+                'mean_prediction': preds.mean().item(),
+                'prediction_std': preds.std().item(),
+                'mean_target': targets.mean().item(),
+                'target_std': targets.std().item(),
+                'grad_norm': total_grad_norm,
+                'lr': optimizer.param_groups[0]['lr']
+            })
+        
+        training_log.append(game_metrics)
+        
+        # Print progress every game (or every N games for less verbose output)
+        if training_mode == "selfplay":
+            print(f"[TRAINING PROGRESS] Game {g}: Loss={game_metrics['loss']:.4f}, "
+                  f"MAE={game_metrics['mae']:.4f}, Mean Pred={game_metrics['mean_prediction']:.4f}, "
+                  f"Grad Norm={game_metrics['grad_norm']:.4f}, Turns={turn_count}")
+        else:
+            print(f"[GAME PROGRESS] Game {g}: Winner={winner}, Turns={turn_count}, "
+                  f"Mean ML Score={game_metrics['mean_ml_score']:.4f}")
 
         if g % 10 == 0:
             ml_model.save_checkpoint(model_path, optimizer=optimizer, epoch=g)
+            
+            # Print training summary every 10 games
+            if training_mode == "selfplay" and len(training_log) >= 10:
+                recent_losses = [m['loss'] for m in training_log[-10:] if 'loss' in m]
+                recent_maes = [m['mae'] for m in training_log[-10:] if 'mae' in m]
+                recent_grad_norms = [m['grad_norm'] for m in training_log[-10:] if 'grad_norm' in m]
+                
+                if recent_losses:
+                    print(f"[SUMMARY] Last 10 games - Avg Loss: {sum(recent_losses)/len(recent_losses):.4f}, "
+                          f"Avg MAE: {sum(recent_maes)/len(recent_maes):.4f}, "
+                          f"Avg Grad Norm: {sum(recent_grad_norms)/len(recent_grad_norms):.4f}")
+    
+    # Save final training log
+    if training_log:
+        import json
+        log_path = dataset_path + "_training_log.json"
+        with open(log_path, 'w') as f:
+            json.dump(training_log, f, indent=2)
+        print(f"Training log saved to {log_path}")
+    
+    return training_log
