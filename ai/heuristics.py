@@ -9,6 +9,8 @@ For now I have made 3 factors:
 
 from game.board import BOARD_SIZE
 from game.rules import legal_moves
+from game.rules import legal_moves, is_win_after_move
+from game.models import MAX_LEVEL
 
 def distance_to_nearest_level3(board_state, pos):
     #Chebyshev distance
@@ -114,3 +116,46 @@ def order_moves(board, moves):
         return (cap_bonus, climb_delta, position_height, build_score)
 
     return sorted(moves, key=score_move, reverse=True)
+
+def evaluate_mcts(board_state, player_index: int) -> float:
+    #for MCTS espescially
+    cfg = board_state.game_config
+    my_id = cfg.get_player_id(player_index)
+    opp_id = cfg.get_player_id(1 - player_index)
+
+    my_workers = [w for w in board_state.workers if w.owner == my_id and w.pos is not None]
+    opp_workers = [w for w in board_state.workers if w.owner == opp_id and w.pos is not None]
+
+    score = 0.0
+
+    # 1) Immediate winning moves  -> huge bonus
+    for w in my_workers:
+        src = w.pos
+        for dst in legal_moves(board_state, src):
+            if is_win_after_move(board_state, src, dst):
+                score += 1000.0
+
+    # 2) Immediate winning moves for opponent -> huge penalty
+    for w in opp_workers:
+        src = w.pos
+        for dst in legal_moves(board_state, src):
+            if is_win_after_move(board_state, src, dst):
+                score -= 1000.0
+
+    # 3) Height advantage
+    for w in my_workers:
+        h = board_state.get_cell(w.pos).height
+        score += h * 10.0
+
+    for w in opp_workers:
+        h = board_state.get_cell(w.pos).height
+        score -= h * 10.0
+
+    # 4) Mobility
+    for w in my_workers:
+        score += len(legal_moves(board_state, w.pos))
+
+    for w in opp_workers:
+        score -= len(legal_moves(board_state, w.pos))
+
+    return score
