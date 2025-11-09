@@ -119,43 +119,63 @@ def order_moves(board, moves):
 
 def evaluate_mcts(board_state, player_index: int) -> float:
     #for MCTS espescially
-    cfg = board_state.game_config
-    my_id = cfg.get_player_id(player_index)
-    opp_id = cfg.get_player_id(1 - player_index)
+    from game.rules import legal_moves, legal_builds, is_win_after_move
+from game.board import BOARD_SIZE
 
-    my_workers = [w for w in board_state.workers if w.owner == my_id and w.pos is not None]
-    opp_workers = [w for w in board_state.workers if w.owner == opp_id and w.pos is not None]
+def evaluate_mcts(board_state, player_id):
+    #for rust mcts especially
+  
+    # --- 1. Tactical win/loss check ---
+    my_workers = [w for w in board_state.workers if w.owner == player_id]
+    opponent_workers = [w for w in board_state.workers if w.owner != player_id]
 
-    score = 0.0
-
-    # 1) Immediate winning moves  -> huge bonus
+    # Win in one move?
     for w in my_workers:
-        src = w.pos
-        for dst in legal_moves(board_state, src):
-            if is_win_after_move(board_state, src, dst):
-                score += 1000.0
+        for move in legal_moves(board_state, w.pos):
+            if is_win_after_move(board_state, w.pos, move):
+                return 1_000_000.0
 
-    # 2) Immediate winning moves for opponent -> huge penalty
-    for w in opp_workers:
-        src = w.pos
-        for dst in legal_moves(board_state, src):
-            if is_win_after_move(board_state, src, dst):
-                score -= 1000.0
+    # Opponent win in one move → penalize
+    for w in opponent_workers:
+        for move in legal_moves(board_state, w.pos):
+            if is_win_after_move(board_state, w.pos, move):
+                return -900_000.0
 
-    # 3) Height advantage
+    # --- 2. Positional heuristic ---
+    height_adv = sum(
+        board_state.get_cell(w.pos).height for w in my_workers
+    ) - sum(
+        board_state.get_cell(w.pos).height for w in opponent_workers
+    )
+
+    mobility = 0
     for w in my_workers:
-        h = board_state.get_cell(w.pos).height
-        score += h * 10.0
+        for move in legal_moves(board_state, w.pos):
+            h_src = board_state.get_cell(w.pos).height
+            h_dst = board_state.get_cell(move).height
+            diff = h_dst - h_src
+            if diff == 1:
+                mobility += 2.0
+            elif diff == 0:
+                mobility += 1.0
+            elif diff < 0:
+                mobility += 0.5
 
-    for w in opp_workers:
-        h = board_state.get_cell(w.pos).height
-        score -= h * 10.0
-
-    # 4) Mobility
+    # Distance to nearest level 3
+    level3 = [
+        (x, y)
+        for x in range(BOARD_SIZE)
+        for y in range(BOARD_SIZE)
+        if board_state.get_cell((x, y)).height == 3
+    ]
+    dist_sum = 0
     for w in my_workers:
-        score += len(legal_moves(board_state, w.pos))
+        x0, y0 = w.pos
+        if level3:
+            dist = min(max(abs(x - x0), abs(y - y0)) for (x, y) in level3)
+        else:
+            dist = BOARD_SIZE
+        dist_sum += (BOARD_SIZE - dist)  # closer is better
 
-    for w in opp_workers:
-        score -= len(legal_moves(board_state, w.pos))
-
-    return score
+    # --- 3. Weighted combination ---
+    return 8 * height_adv + 2 * mobility + 6 * dist_sum

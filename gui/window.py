@@ -180,6 +180,8 @@ def choose_mode_ui() -> Dict[str, Any]:
                     ai[pid] = {"algo": algo, "depth": depth, "iters": iters, "model": ml_model}
                 else:
                     ai[pid] = {"algo": algo, "depth": depth, "iters": iters}
+                iters = int(ai_vars[pid]["iters"].get()) if algo in ("mcts","rust_mcts") else None
+                ai[pid] = {"algo": algo, "depth": depth, "iters": iters}
 
         selected["val"] = {"num_players": num_players, "mode": mode, "ai": ai}
         root.destroy()
