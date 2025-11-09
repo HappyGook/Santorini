@@ -10,6 +10,7 @@ import ai.mcts as mc
 from game.board import BOARD_SIZE
 from ai.phrases import PHRASES_BY_PLAYER
 
+import rust
 
 class FallbackStats: # fallback for search stats 
     __slots__ = ("nodes", "tt_hits")
@@ -82,15 +83,16 @@ class Agent:
 
         else:  # "mcts"
             # Allow overriding iterations
-            vector, action = mc.mcts(
+            print(f"[{self.player_id}] using Rust hybrid MCTS ...")
+
+            value, best_action = rust.run_mcts_python_rules(
                 board_state,
                 player_index=player_index,
-                game_config=game_config,
-                iters=self.iters,
-                depth=self.depth,
-                stats=stats
+                iterations=self.iters or 200
             )
-            eval_value = vector
+
+        eval_value = value
+        action = best_action
 
         print(f"[{self.player_id}][{self.algo}] nodes={stats.nodes} tt_hits={stats.tt_hits}")
 
