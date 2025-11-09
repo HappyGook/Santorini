@@ -1,17 +1,13 @@
-use pyo3::{prelude::*, types::PyModule};
 use pyo3::wrap_pyfunction;
-use rand::{rngs::SmallRng, SeedableRng};
+use pyo3::{prelude::*, types::PyModule};
+use rand::{SeedableRng, rngs::SmallRng};
 pub mod mcts_tree;
-use mcts_tree::{Tree,Node};
-
-
+use mcts_tree::{Node, Tree};
 
 // cd Santorini/rust
 // cargo build --release
 // maturin build --release
 // python -m pip install --force-reinstall target\wheels\rust-0.1.0-cp312-cp312-win_amd64.whl
-
-
 
 const MAX_DEPTH: usize = 8; // limit search depth for safety
 
@@ -43,17 +39,18 @@ fn run_mcts_python_rules(
     let py_apply_action = helpers.getattr("apply_action")?;
     let py_is_terminal = helpers.getattr("is_terminal")?;
 
-      // Build tree with root
+    // Build tree with root
     let mut tree = Tree::new(board.clone_ref(py), player_index);
     let root_idx = 0usize;
 
     let mut _rng = SmallRng::seed_from_u64(12345);
 
-    for iter in 0..iterations {
-        // Optional debug
-        if iter % 50 == 0 {
-            println!("[Rust PUCT] iter {iter}/{iterations}");
-        }
+    for _iter in 0..iterations {
+        //Optional debug
+        // if iter % 50 == 0 {
+            
+        //     //println!("[Rust PUCT] iter {iter}/{iterations}");
+        // }
 
         // 1) Selection: walk down the tree using PUCT
         let mut path: Vec<usize> = Vec::with_capacity(MAX_DEPTH + 1);
@@ -93,39 +90,38 @@ fn run_mcts_python_rules(
             .extract()?;
         if is_term {
             leaf_value = 1.0; // treat as very good for root player
-            } 
-        else if actions.is_empty() {
-        // No actions (stuck position) -> just evaluate board
+        } else if actions.is_empty() {
+            // No actions (stuck position) -> just evaluate board
             leaf_value = py_evaluate_board
-            .call1((leaf_board_ref.clone(), player_index))?
-            .extract()?;
+                .call1((leaf_board_ref.clone(), player_index))?
+                .extract()?;
         } else {
             // a) Evaluate current leaf board once
-    leaf_value = py_evaluate_board
-        .call1((leaf_board_ref.clone(), player_index))?
-        .extract()?;
-
-    // b) Expand children on first visit
-    if tree.nodes[leaf_idx].children.is_empty() {
-        let prior_per_action = 1.0f32 / actions.len() as f32;
-        for act in &actions {
-            let child_board: Py<PyAny> = py_apply_action
-                .call1((leaf_board_ref.clone(), act.bind(py)))?
+            leaf_value = py_evaluate_board
+                .call1((leaf_board_ref.clone(), player_index))?
                 .extract()?;
 
-            let mut child =
-                Node::new(child_board, next_player(leaf_player), prior_per_action);
-            child.action_from_parent = Some(act.clone_ref(py));
-            tree.add_child(leaf_idx, child);
+            // b) Expand children on first visit
+            if tree.nodes[leaf_idx].children.is_empty() {
+                let prior_per_action = 1.0f32 / actions.len() as f32;
+                for act in &actions {
+                    let child_board: Py<PyAny> = py_apply_action
+                        .call1((leaf_board_ref.clone(), act.bind(py)))?
+                        .extract()?;
+
+                    let mut child =
+                        Node::new(child_board, next_player(leaf_player), prior_per_action);
+                    child.action_from_parent = Some(act.clone_ref(py));
+                    tree.add_child(leaf_idx, child);
+                }
+            }
         }
-    }
-}
         // 4) Backpropagate value up the path
         backpropagate(&mut tree, &path, leaf_value);
     }
 
     // 5) Choose best child at root (highest visit count)
-        let root = &tree.nodes[root_idx];
+    let root = &tree.nodes[root_idx];
     if root.children.is_empty() {
         // No moves: evaluate root board and return "no action" (None)
         let root_ref = board.bind(py);
@@ -137,7 +133,6 @@ fn run_mcts_python_rules(
         let none_action: Py<PyAny> = py.None().into();
         return Ok((value, none_action));
     }
-
 
     let mut best_child_idx = root.children[0];
     let mut best_visits = tree.nodes[best_child_idx].visits;
@@ -166,4 +161,3 @@ fn rust(_py: Python, m: &Bound<PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(run_mcts_python_rules, m)?)?;
     Ok(())
 }
-    
