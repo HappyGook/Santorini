@@ -164,7 +164,7 @@ def choose_mode_ui() -> Dict[str, Any]:
             for pid in ai_players:
                 algo = ai_vars[pid]["algo"].get()
                 depth = int(ai_vars[pid]["depth"].get())
-                iters = int(ai_vars[pid]["iters"].get()) if algo == "mcts" else None
+                iters = int(ai_vars[pid]["iters"].get()) if algo in ("mcts","rust_mcts") else None
                 ai[pid] = {"algo": algo, "depth": depth, "iters": iters}
 
         selected["val"] = {"num_players": num_players, "mode": mode, "ai": ai}
