@@ -2,14 +2,16 @@ import os
 
 import torch
 from ai.heuristics import evaluate
+from game import rules
 from game.board import Board
 from ai.agent import Agent
+from game.rules import player_has_moves
 from ml.encode import make_input_tensor
 from ml.model import SantoNeuroNet, value_loss
 from ml.dataset import SantoDataset
 from game.moves import place_worker
 
-
+# TODO: Fix the no actions problem (200 moves)
 def selfplay(controller_class, game_config, model_path, dataset_path, num_games=1000, training_mode="selfplay"):
     ml_model = SantoNeuroNet()
     ml_model.load_checkpoint(model_path)
@@ -27,6 +29,9 @@ def selfplay(controller_class, game_config, model_path, dataset_path, num_games=
             agents = [Agent(f"P{i+1}", algo="maxn", depth=2) for i in range(game_config.num_players)]
         else:
             agents = [Agent(f"P{i+1}", algo="ml", model=ml_model) for i in range(game_config.num_players)]
+
+        for agent in agents:
+            agent.active = True
 
         players = {a.player_id: {"type": "AI", "agent": a} for a in agents}
         controller = controller_class(board, players, game_config)
@@ -46,10 +51,17 @@ def selfplay(controller_class, game_config, model_path, dataset_path, num_games=
         turn_count = 0
         game_ml_scores = []  # Track ML scores for the game
 
-        while not game_over and not board.game_over() and turn_count < 500:
+        while not game_over and not rules.game_over(board) and turn_count < 200:
             for agent in agents:
-                # In guided maxn
-                # In selfplay model
+                if not agent.active:
+                    continue
+
+                if not player_has_moves(board, agent.player_id):
+                    agent.active = False
+                    print(f"[INFO] {agent.player_id} has no moves and is deactivated at turn {turn_count}")
+                    controller.end_turn()
+                    continue
+
                 ml_score, action = agent.decide_action(board)
                 heuristic_score = evaluate(board, agent.player_id)
                 
@@ -59,7 +71,12 @@ def selfplay(controller_class, game_config, model_path, dataset_path, num_games=
 
                 if not action:
                     controller.end_turn()
+                    print(f"[DEBUG] {agent.player_id} returned no move at turn {turn_count}")
                     continue
+                elif rules.game_over(board):
+                    print(f"[TURN {turn_count}] Game over detected.")
+                else:
+                    print(f"[TURN {turn_count}] {agent.player_id} plays {action}.")
 
                 worker, move, build = action
                 ok_move, won = controller.apply_move(worker, move)
@@ -72,7 +89,7 @@ def selfplay(controller_class, game_config, model_path, dataset_path, num_games=
                 game_records.append((board.clone(), action, agent.player_id, float(heuristic_score)))
                 controller.end_turn()
 
-                if won or board.game_over():
+                if won or rules.game_over(board):
                     winner = agent.player_id
                     print(f"[GAME OVER] {winner} wins, stopping selfplay loop")
                     game_over = True
@@ -82,6 +99,8 @@ def selfplay(controller_class, game_config, model_path, dataset_path, num_games=
                 break
 
             print("Workers after turn:", board.workers)
+            if rules.game_over(board):
+                break
             turn_count += 1
 
         dataset.save(dataset_path)

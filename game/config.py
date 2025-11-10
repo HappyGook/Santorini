@@ -57,6 +57,10 @@ class GameConfig:
         """Convert player ID string to index"""
         return self.player_ids.index(player_id)
 
+    def get_player_ids(self) -> List[str]:
+        """Return the list of all player IDs."""
+        return self.player_ids
+
 # Usage kinda like
 # 2-player game: players [0,1] -> ["P1","P2"], workers ["P1A","P1B","P2A","P2B"]
 # 3-player game: players [0,1,2] -> ["P1","P2","P3"], workers ["P1A","P1B","P2A","P2B","P3A","P3B"]

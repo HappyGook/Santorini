@@ -1,5 +1,6 @@
 from typing import Tuple, List
 from ai.heuristics import evaluate, order_moves
+from game import rules
 from game.config import GameConfig
 from game.moves import move_worker, build_block
 from game.rules import legal_moves, legal_builds
@@ -26,7 +27,7 @@ def maxn(board, depth, player_index, game_config, stats, ancestor_index=None, an
         return TT[key]
 
     # terminal node reached or depth limit
-    if depth == 0 or board.game_over():
+    if depth == 0 or rules.game_over(board):
         payoff = [evaluate(board, pid) for pid in game_config.player_ids]
         TT[key] = (payoff, None)
         return payoff, None

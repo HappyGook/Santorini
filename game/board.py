@@ -11,6 +11,7 @@ class Board:
         self.workers: List[Worker] = workers or []
         self.game_config = game_config
         self.current_player_index: int = 0
+        self.remaining_players: List[str] = list(self.game_config.get_player_ids())
 
     @property
     def current_player(self) -> str:
@@ -67,12 +68,3 @@ class Board:
                 cell = self.grid[(r, c)]
                 print(f"({r},{c}): h={cell.height}, w={cell.worker_id}")
             print()  # Blank line between rows for readability
-
-    def game_over(self):
-        for r in range(BOARD_SIZE):
-            for c in range(BOARD_SIZE):
-                cell = self.grid[(r, c)]
-                if cell.height==3 and cell.worker_id is not None:
-                    return True
-
-        return False

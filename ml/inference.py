@@ -12,6 +12,7 @@ def ml_inference(board_state, player_index, model, stats):
     legal_actions = all_legal_actions(board_state, player_id)
     logging.debug(f"[ML-Inference] Found {len(legal_actions)} legal actions for player {player_index}")
     if not legal_actions:
+        logging.debug(f"[ML-NO] No legal actions for player {player_index}")
         return None, None
 
     logging.debug(f"[ML-Inference] Example action: {legal_actions[0] if legal_actions else 'None'}")
