@@ -32,7 +32,7 @@ def make_stats():
 
 
 
-AlgoName = Literal["minimax", "maxn", "mcts","ml"]
+AlgoName = Literal["minimax", "maxn", "mcts"]
 
 class Agent:
     def __init__(self, player_id: str, algo: AlgoName = "minimax",
@@ -77,6 +77,20 @@ class Agent:
                 stats=stats
             )
             eval_value = vector
+
+        elif self.algo == "rust_mcts":
+    
+            print(f"[{self.player_id}] using Rust hybrid MCTS ...")
+
+            value, best_action = rust.run_mcts_python_rules(
+                board_state,
+                player_index=player_index,
+                iterations=self.iters
+            )
+
+            eval_value = value
+            action = best_action
+
 
         elif self.algo == "ml":
             from ml.inference import ml_inference

@@ -171,16 +171,6 @@ def choose_mode_ui() -> Dict[str, Any]:
                 algo = ai_vars[pid]["algo"].get()
                 depth = int(ai_vars[pid]["depth"].get())
                 iters = int(ai_vars[pid]["iters"].get()) if algo == "mcts" else None
-                if algo == "ml":
-                    # Load the ML model
-                    if not ml_model_loaded:
-                        ml_model = SantoNeuroNet()
-                        ml_model.load_checkpoint("ml/learned_models/guided_model.pt") # Find correct way
-                        ml_model_loaded = True
-                    ai[pid] = {"algo": algo, "depth": depth, "iters": iters, "model": ml_model}
-                else:
-                    ai[pid] = {"algo": algo, "depth": depth, "iters": iters}
-                iters = int(ai_vars[pid]["iters"].get()) if algo in ("mcts","rust_mcts") else None
                 ai[pid] = {"algo": algo, "depth": depth, "iters": iters}
 
         selected["val"] = {"num_players": num_players, "mode": mode, "ai": ai}
