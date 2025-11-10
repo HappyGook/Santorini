@@ -25,3 +25,5 @@ dist/
 **/__pycache__/
 *.pyc
 scratch/
+
+learned_models/
