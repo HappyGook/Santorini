@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import random
 from typing import Optional, Tuple, Literal
-from sympy.categories import Object
+import sympy as sp
+
+
+
 import ai.minimax as mm
 import ai.maxn as mx
 import ai.mcts as mc
@@ -10,6 +13,7 @@ import ai.mcts as mc
 from game.board import BOARD_SIZE
 from ai.phrases import PHRASES_BY_PLAYER
 
+import rust
 
 class FallbackStats: # fallback for search stats 
     __slots__ = ("nodes", "tt_hits")
@@ -28,7 +32,7 @@ def make_stats():
 
 
 
-AlgoName = Literal["minimax", "maxn", "mcts","ml"]
+AlgoName = Literal["minimax", "maxn", "mcts"]
 
 class Agent:
     def __init__(self, player_id: str, algo: AlgoName = "minimax",
@@ -74,6 +78,20 @@ class Agent:
             )
             eval_value = vector
 
+        elif self.algo == "rust_mcts":
+    
+            print(f"[{self.player_id}] using Rust hybrid MCTS ...")
+
+            value, best_action = rust.run_mcts_python_rules(
+                board_state,
+                player_index=player_index,
+                iterations=self.iters
+            )
+
+            eval_value = value
+            action = best_action
+
+
         elif self.algo == "ml":
             from ml.inference import ml_inference
             if self.model is None:
@@ -82,15 +100,16 @@ class Agent:
 
         else:  # "mcts"
             # Allow overriding iterations
-            vector, action = mc.mcts(
+            print(f"[{self.player_id}] using Rust hybrid MCTS ...")
+
+            value, best_action = rust.run_mcts_python_rules(
                 board_state,
                 player_index=player_index,
-                game_config=game_config,
-                iters=self.iters,
-                depth=self.depth,
-                stats=stats
+                iterations=self.iters or 400
             )
-            eval_value = vector
+
+            eval_value = value
+            action = best_action
 
         print(f"[{self.player_id}][{self.algo}] nodes={stats.nodes} tt_hits={stats.tt_hits}")
 

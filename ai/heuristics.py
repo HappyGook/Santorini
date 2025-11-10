@@ -8,7 +8,8 @@ For now I have made 3 factors:
 """
 
 from game.board import BOARD_SIZE
-from game.rules import legal_moves
+from game.rules import legal_moves, is_win_after_move
+from game.models import MAX_LEVEL
 
 def distance_to_nearest_level3(board_state, pos):
     #Chebyshev distance
@@ -114,3 +115,98 @@ def order_moves(board, moves):
         return (cap_bonus, climb_delta, position_height, build_score)
 
     return sorted(moves, key=score_move, reverse=True)
+
+
+def evaluate_mcts(board_state, player_id):
+    # for rust mcts especially
+
+    # 0 1 2 == p1 p2 p3
+    if isinstance(player_id, int):
+        player_id = board_state.game_config.get_player_id(player_id)
+
+    # --- 1. Tactical win/loss check ---
+    my_workers = [w for w in board_state.workers if w.owner == player_id]
+    opponent_workers = [w for w in board_state.workers if w.owner != player_id]
+
+    # Win in one move?
+    for w in my_workers:
+        for move in legal_moves(board_state, w.pos):
+            if is_win_after_move(board_state, w.pos, move):
+                return 1.0
+
+    # Opponent win in one move → penalize
+    for w in opponent_workers:
+        for move in legal_moves(board_state, w.pos):
+            if is_win_after_move(board_state, w.pos, move):
+                return -1.0
+    # --- 2. Positional heuristic ---
+    height_adv = sum(
+        board_state.get_cell(w.pos).height for w in my_workers
+    ) - sum(
+        board_state.get_cell(w.pos).height for w in opponent_workers
+    )
+
+    my_mobility = 0.0
+    for w in my_workers:
+        for move in legal_moves(board_state, w.pos):
+            h_src = board_state.get_cell(w.pos).height
+            h_dst = board_state.get_cell(move).height
+            diff = h_dst - h_src
+            if diff == 1:
+                my_mobility += 2.0
+            elif diff == 0:
+                my_mobility += 1.0
+            elif diff < 0:
+                my_mobility += 0.5
+
+    opp_mobility = 0.0
+    for w in opponent_workers:
+        for move in legal_moves(board_state, w.pos):
+            h_src = board_state.get_cell(w.pos).height
+            h_dst = board_state.get_cell(move).height
+            diff = h_dst - h_src
+            if diff == 1:
+                opp_mobility += 2.0
+            elif diff == 0:
+                opp_mobility += 1.0
+            elif diff < 0:
+                opp_mobility += 0.5           
+
+    mobility = my_mobility - opp_mobility 
+
+    # Distance to nearest level 3
+    level3 = [
+        (x, y)
+        for x in range(BOARD_SIZE)
+        for y in range(BOARD_SIZE)
+        if board_state.get_cell((x, y)).height == 3
+    ]
+    my_dist = 0.0
+    for w in my_workers:
+        x0, y0 = w.pos
+        if level3:
+            dist = min(max(abs(x - x0), abs(y - y0)) for (x, y) in level3)
+        else:
+            dist = BOARD_SIZE
+        my_dist += (BOARD_SIZE - dist)  # closer is better
+
+    opp_dist = 0.0
+    for w in opponent_workers:
+        x0, y0 = w.pos
+        if level3:
+            dist = min(max(abs(x - x0), abs(y - y0)) for (x, y) in level3)
+        else:
+            dist = BOARD_SIZE
+        opp_dist += (BOARD_SIZE - dist)
+
+    dist_sum = my_dist - opp_dist
+
+    # --- 3. Weighted combination ---
+    raw = 8 * height_adv + 2 * mobility + 6 * dist_sum
+# Normalize to [-0.5, 0.5]
+    v = raw / 100.0
+    if v > 0.5:
+        v = 0.5
+    if v < -0.5:
+        v = -0.5
+    return v   
