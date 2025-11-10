@@ -2,9 +2,7 @@ from __future__ import annotations
 
 import random
 from typing import Optional, Tuple, Literal
-import sympy as sp
-
-
+from sympy.categories import Object
 
 import ai.minimax as mm
 import ai.maxn as mx

@@ -99,7 +99,7 @@ def choose_mode_ui() -> Dict[str, Any]:
         ttk.Label(r["frame"], text="Algo").grid(row=0, column=1, sticky="e")
         r["algo"] = ttk.Combobox(
             r["frame"], width=10, state="readonly",
-            values=["minimax", "maxn", "mcts","rust_mcts"], textvariable=ai_vars[pid]["algo"]
+            values=["minimax", "maxn", "ml", "mcts","rust_mcts"], textvariable=ai_vars[pid]["algo"]
         )
         r["algo"].grid(row=0, column=2, padx=4)
 
@@ -171,7 +171,15 @@ def choose_mode_ui() -> Dict[str, Any]:
                 algo = ai_vars[pid]["algo"].get()
                 depth = int(ai_vars[pid]["depth"].get())
                 iters = int(ai_vars[pid]["iters"].get()) if algo == "mcts" else None
-                ai[pid] = {"algo": algo, "depth": depth, "iters": iters}
+                if algo == "ml":
+                    # Load the ML model
+                    if not ml_model_loaded:
+                        ml_model = SantoNeuroNet()
+                        ml_model.load_checkpoint("ml/learned_models/best.pt")
+                        ml_model_loaded = True
+                    ai[pid] = {"algo": algo, "depth": depth, "iters": iters, "model": ml_model}
+                else:
+                    ai[pid] = {"algo": algo, "depth": depth, "iters": iters}
 
         selected["val"] = {"num_players": num_players, "mode": mode, "ai": ai}
         root.destroy()
