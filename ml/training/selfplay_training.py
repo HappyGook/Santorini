@@ -5,5 +5,5 @@ from ml.selfplay import selfplay
 
 controller = GameController
 config = GameConfig(num_players=3)
-selfplay(controller, config,model_path="../learned_models/guided_model.pt",
-         dataset_path="../datasets/selfplayed_games", num_games=100, training_mode="selfplay")
+selfplay(controller, config,model_path="ml/learned_models/guided_model.pt",
+         dataset_path="ml/datasets/guided_games", num_games=300, training_mode="guided")

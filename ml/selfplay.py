@@ -91,13 +91,15 @@ def selfplay(controller_class, game_config, model_path, dataset_path, num_games=
             'game': g,
             'winner': winner,
             'turns': turn_count,
-            'mean_ml_score': sum(game_ml_scores) / len(game_ml_scores) if game_ml_scores else 0.0,
-            'ml_score_std': torch.tensor(game_ml_scores).std().item() if len(game_ml_scores) > 1 else 0.0,
             'num_moves': len(game_records)
         }
 
-        # backprop only in selfplay mode
-        if training_mode == "selfplay":
+        # Only include ML-related metrics if in selfplay (and if data exists)
+        if training_mode == "selfplay" and game_ml_scores:
+            game_metrics.update({
+                'mean_ml_score': float(sum(game_ml_scores) / len(game_ml_scores)),
+                'ml_score_std': float(torch.tensor(game_ml_scores).std().item()) if len(game_ml_scores) > 1 else 0.0,
+            })
             rewards = {a.player_id: (1.0 if winner == a.player_id else -1.0) for a in agents}
 
             states, targets = [], []
@@ -140,15 +142,14 @@ def selfplay(controller_class, game_config, model_path, dataset_path, num_games=
             })
         
         training_log.append(game_metrics)
-        
-        # Print progress every game (or every N games for less verbose output)
+
         if training_mode == "selfplay":
             print(f"[TRAINING PROGRESS] Game {g}: Loss={game_metrics['loss']:.4f}, "
                   f"MAE={game_metrics['mae']:.4f}, Mean Pred={game_metrics['mean_prediction']:.4f}, "
                   f"Grad Norm={game_metrics['grad_norm']:.4f}, Turns={turn_count}")
         else:
-            print(f"[GAME PROGRESS] Game {g}: Winner={winner}, Turns={turn_count}, "
-                  f"Mean ML Score={game_metrics['mean_ml_score']:.4f}")
+            mean_ml = game_metrics.get('mean_ml_score', 0.0)
+            print(f"[GAME PROGRESS] Game {g}: Winner={winner}, Turns={turn_count}, Mean ML Score={mean_ml:.4f}")
 
         if g % 10 == 0:
             ml_model.save_checkpoint(model_path, optimizer=optimizer, epoch=g)
