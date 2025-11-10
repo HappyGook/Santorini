@@ -83,7 +83,7 @@ class Agent:
             value, best_action = rust.run_mcts_python_rules(
                 board_state,
                 player_index=player_index,
-                iterations=self.iters
+                iterations=self.iters or 500
             )
 
             eval_value = value
