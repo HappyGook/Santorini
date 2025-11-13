@@ -95,6 +95,13 @@ def selfplay(controller_class, game_config, model_path, dataset_path, num_games=
                     game_over = True
                     break
 
+            # Check if all players eliminated
+            active_agents = [a for a in agents if a.active]
+            if not active_agents:
+                print(f"[GAME END] All players have no moves and are eliminated at turn {turn_count}")
+                game_over = True
+                break
+
             if winner is not None or game_over:
                 break
 
@@ -103,15 +110,27 @@ def selfplay(controller_class, game_config, model_path, dataset_path, num_games=
                 break
             turn_count += 1
 
-        dataset.save(dataset_path)
+        # --- Serialize final board state before saving dataset and metrics ---
+        final_board = []
+        for y in range(5):
+            row = []
+            for x in range(5):
+                cell = board.grid[y,x]
+                worker = next((w.id for w in board.workers if w.pos == (x, y)), None)
+                row.append(f"{cell.height}{worker or '.'}")
+            final_board.append(' '.join(row))
+        final_board_text = '\n'.join(final_board)
 
         # Training metrics for this game
         game_metrics = {
             'game': g,
             'winner': winner,
             'turns': turn_count,
-            'num_moves': len(game_records)
+            'num_moves': len(game_records),
+            'final_board_state': final_board_text
         }
+
+        dataset.save(dataset_path)
 
         # Only include ML-related metrics if in selfplay (and if data exists)
         if training_mode == "selfplay" and game_ml_scores:

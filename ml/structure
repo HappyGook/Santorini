@@ -29,3 +29,8 @@ Symmetry test after one game -- PASSED
 │ 5       │ Fine-tuning     │ 500-1000     │ Avg game        │ Consistent       │
 │         │ & Stabilization │ games        │ length < 100    │ strong play      │
 └─────────┴─────────────────┴──────────────┴─────────────────┴──────────────────┘
+
+SELFPLAY
+TODO: Worker on tile height 4 at game end?? Player moved to 4/game didn't end
+TODO: Win conditions still wrong
+TODO: No remaining actions when still are
