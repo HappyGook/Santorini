@@ -31,6 +31,7 @@ Symmetry test after one game -- PASSED
 └─────────┴─────────────────┴──────────────┴─────────────────┴──────────────────┘
 
 SELFPLAY
-TODO: Worker on tile height 4 at game end?? Player moved to 4/game didn't end
-TODO: Win conditions still wrong
-TODO: No remaining actions when still are
+TODO: Check win conditions for victories without reaching height 3
+TODO: No remaining actions when still are ? -> Checked all_legal_actions, more needed?
+TODO: Make sure selfplay games in logs actually end correctly
+TODO: After that start with proper training from scratch

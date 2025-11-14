@@ -5,13 +5,19 @@ from ai.heuristics import evaluate
 from game import rules
 from game.board import Board
 from ai.agent import Agent
-from game.rules import player_has_moves
+from game.rules import all_legal_actions
 from ml.encode import make_input_tensor
 from ml.model import SantoNeuroNet, value_loss
 from ml.dataset import SantoDataset
 from game.moves import place_worker
 
-# TODO: Fix the no actions problem (200 moves)
+def make_agents(game_config, model, training_mode):
+    if training_mode == "guided":
+        return [Agent(f"P{i+1}", algo="maxn", depth=2) for i in range(game_config.num_players)]
+    return [Agent(f"P{i+1}", algo="ml", model=model) for i in range(game_config.num_players)]
+
+
+
 def selfplay(controller_class, game_config, model_path, dataset_path, num_games=1000, training_mode="selfplay"):
     ml_model = SantoNeuroNet()
     ml_model.load_checkpoint(model_path)
@@ -24,11 +30,7 @@ def selfplay(controller_class, game_config, model_path, dataset_path, num_games=
     for g in range(num_games):
         board = Board(game_config)
 
-        # Guided selfplay in maxn to put good moves in dataset
-        if training_mode == "guided":
-            agents = [Agent(f"P{i+1}", algo="maxn", depth=2) for i in range(game_config.num_players)]
-        else:
-            agents = [Agent(f"P{i+1}", algo="ml", model=ml_model) for i in range(game_config.num_players)]
+        agents = make_agents(game_config, ml_model, training_mode)
 
         for agent in agents:
             agent.active = True
@@ -52,71 +54,127 @@ def selfplay(controller_class, game_config, model_path, dataset_path, num_games=
         game_ml_scores = []  # Track ML scores for the game
 
         while not game_over and not rules.game_over(board) and turn_count < 200:
-            for agent in agents:
-                if not agent.active:
-                    continue
+            print("\n" + "=" * 60)
+            print(f"[TURN {turn_count} BEGIN] Current player: {board.current_player}")
+            print("Remaining players:", board.remaining_players)
+            print("[WORKERS POSITIONS]")
+            for w in board.workers:
+                print(f"  {w.id}({w.owner}) at {w.pos} h={board.get_cell(w.pos).height}")
+            print("=" * 60)
 
-                if not player_has_moves(board, agent.player_id):
-                    agent.active = False
-                    print(f"[INFO] {agent.player_id} has no moves and is deactivated at turn {turn_count}")
-                    controller.end_turn()
-                    continue
+            pid = board.current_player
+            agent = next(a for a in agents if a.player_id == pid)
 
-                ml_score, action = agent.decide_action(board)
-                heuristic_score = evaluate(board, agent.player_id)
-                
-                # Track ML scores during game
-                if ml_score is not None:
-                    game_ml_scores.append(ml_score)
+            if pid not in board.active_players:
+                board.next_turn()
+                # Normalize current_player_index if board.next_turn assigned a player_id string
+                if isinstance(board.current_player_index, str):
+                    board.current_player_index = game_config.get_player_index(board.current_player_index)
+                continue
 
-                if not action:
-                    controller.end_turn()
-                    print(f"[DEBUG] {agent.player_id} returned no move at turn {turn_count}")
-                    continue
-                elif rules.game_over(board):
-                    print(f"[TURN {turn_count}] Game over detected.")
-                else:
-                    print(f"[TURN {turn_count}] {agent.player_id} plays {action}.")
-
-                worker, move, build = action
-                ok_move, won = controller.apply_move(worker, move)
-                if not ok_move:
-                    break
-                controller.apply_build(worker, build)
-
-                print(f"[SELFPLAY'S DEBUG] Score to be saved on this turn: {heuristic_score}")
-                dataset.add_sample(board, agent.player_id, (worker, move, build), float(heuristic_score))
-                game_records.append((board.clone(), action, agent.player_id, float(heuristic_score)))
-                controller.end_turn()
-
-                if won or rules.game_over(board):
-                    winner = agent.player_id
-                    print(f"[GAME OVER] {winner} wins, stopping selfplay loop")
+            actions = all_legal_actions(board, pid)
+            if not actions:
+                board.eliminate_player(pid)
+                if len(board.active_players) == 1:
+                    winner = board.active_players[0]
                     game_over = True
                     break
+                board.next_turn()
+                # Normalize current_player_index if board.next_turn assigned a player_id string
+                if isinstance(board.current_player_index, str):
+                    board.current_player_index = game_config.get_player_index(board.current_player_index)
+                continue
 
-            # Check if all players eliminated
-            active_agents = [a for a in agents if a.active]
-            if not active_agents:
-                print(f"[GAME END] All players have no moves and are eliminated at turn {turn_count}")
+            ml_score, action = agent.decide_action(board)
+            if training_mode == "selfplay":
+                game_ml_scores.append(float(ml_score))
+            if action is None:
+                print(f"[DEBUG] {pid} returned no action.")
+                board.next_turn()
+                # Normalize current_player_index if board.next_turn assigned a player_id string
+                if isinstance(board.current_player_index, str):
+                    board.current_player_index = game_config.get_player_index(board.current_player_index)
+                turn_count += 1
+                continue
+
+            worker, move, build = action
+
+            # Pre-move legality checks
+            if not rules.can_move(board, worker.pos, move):
+                print(f"❌ Illegal move proposed by {pid}: {worker.pos} -> {move}")
+                board.next_turn()
+                # Normalize current_player_index if board.next_turn assigned a player_id string
+                if isinstance(board.current_player_index, str):
+                    board.current_player_index = game_config.get_player_index(board.current_player_index)
+                turn_count += 1
+                continue
+            if not rules.can_build(board, move, build):
+                print(f"❌ Illegal build proposed by {pid} at {build}")
+                board.next_turn()
+                # Normalize current_player_index if board.next_turn assigned a player_id string
+                if isinstance(board.current_player_index, str):
+                    board.current_player_index = game_config.get_player_index(board.current_player_index)
+                turn_count += 1
+                continue
+
+            print(f"[TURN {turn_count}] {pid} plays {action}.")
+
+            ok_move, won = controller.apply_move(worker, move)
+            if not ok_move:
+                print(f"❌ Controller rejected move {move} by {pid}")
+                board.next_turn()
+                # Normalize current_player_index if board.next_turn assigned a player_id string
+                if isinstance(board.current_player_index, str):
+                    board.current_player_index = game_config.get_player_index(board.current_player_index)
+                turn_count += 1
+                continue
+
+            controller.apply_build(worker, build)
+
+            # Grid consistency checks
+            cell = board.get_cell(worker.pos)
+            if cell.worker_id != worker.id:
+                print(f"❌ GRID MISMATCH: worker {worker.id} at {worker.pos} but cell has {cell.worker_id}")
+
+            seen = {}
+            for ww in board.workers:
+                if ww.pos in seen:
+                    print(f"❌ DUPLICATE POSITION: {seen[ww.pos]} and {ww.id} on {ww.pos}")
+                seen[ww.pos] = ww.id
+
+            heuristic_score = evaluate(board, pid)
+            print(f"[SELFPLAY DEBUG] Score to be saved: {heuristic_score}")
+
+            dataset.add_sample(board, pid, (worker, move, build), float(heuristic_score))
+            game_records.append((board.clone(), action, pid, float(heuristic_score)))
+
+            # Win check
+            if won or rules.game_over(board):
+                print("[WIN CHECK]")
+                for r in range(5):
+                    for c in range(5):
+                        cell = board.grid[(r, c)]
+                        if cell.height == 3 and cell.worker_id:
+                            print(f"  Worker {cell.worker_id} stands on a win-tile at {(r, c)}")
+                winner = pid
+                print(f"[GAME OVER] {winner} wins.")
                 game_over = True
                 break
 
-            if winner is not None or game_over:
-                break
-
-            print("Workers after turn:", board.workers)
-            if rules.game_over(board):
-                break
+            board.next_turn()
+            # Normalize current_player_index if board.next_turn assigned a player_id string
+            if isinstance(board.current_player_index, str):
+                board.current_player_index = game_config.get_player_index(board.current_player_index)
             turn_count += 1
 
         # --- Serialize final board state before saving dataset and metrics ---
+        # Use consistent (row, col) ordering: Board uses (row, col) everywhere.
         final_board = []
-        for y in range(5):
+        for r in range(5):
             row = []
-            for x in range(5):
-                cell = board.grid[y,x]
-                worker = next((w.id for w in board.workers if w.pos == (x, y)), None)
+            for c in range(5):
+                cell = board.grid[(r, c)]
+                worker = next((w.id for w in board.workers if w.pos == (r, c)), None)
                 row.append(f"{cell.height}{worker or '.'}")
             final_board.append(' '.join(row))
         final_board_text = '\n'.join(final_board)

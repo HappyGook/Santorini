@@ -12,15 +12,31 @@ class Board:
         self.game_config = game_config
         self.current_player_index: int = 0
         self.remaining_players: List[str] = list(self.game_config.get_player_ids())
+        self.turn_order = list(self.game_config.get_player_ids())
+        self.active_players = self.turn_order.copy()
 
     @property
     def current_player(self) -> str:
         """Get current player ID string for backward compatibility"""
         return self.game_config.get_player_id(self.current_player_index)
 
-    def next_turn(self) -> None:
-        """Go to next player with modulo rotation"""
-        self.current_player_index = self.game_config.next_player_index(self.current_player_index)
+    def next_turn(self):
+        if not self.active_players:
+            return  # No one left
+
+        # Convert current_player_index to index if it somehow became a string
+        if isinstance(self.current_player_index, str):
+            try:
+                idx = self.active_players.index(self.current_player_index)
+            except ValueError:
+                # current player no longer active, start from 0
+                idx = -1
+        else:
+            idx = self.current_player_index
+
+        # Move to next active player
+        idx = (idx + 1) % len(self.active_players)
+        self.current_player_index = self.game_config.get_player_index(self.active_players[idx])
 
     def in_bounds(self, pos: Coord) -> bool:
         """Return True if pos on the board."""
@@ -68,3 +84,15 @@ class Board:
                 cell = self.grid[(r, c)]
                 print(f"({r},{c}): h={cell.height}, w={cell.worker_id}")
             print()  # Blank line between rows for readability
+
+    def eliminate_player(self, pid: str):
+        if pid in self.active_players:
+            removed_idx = self.active_players.index(pid)
+            self.active_players.remove(pid)
+            # If the eliminated player was current, move to next
+            if self.current_player == pid:
+                if self.active_players:
+                    next_idx = removed_idx % len(self.active_players)
+                    self.current_player_index = self.game_config.get_player_index(self.active_players[next_idx])
+                else:
+                    self.current_player_index = 0

@@ -3,7 +3,7 @@ from ai.heuristics import evaluate, order_moves
 from game import rules
 from game.config import GameConfig
 from game.moves import move_worker, build_block
-from game.rules import legal_moves, legal_builds
+from game.rules import legal_moves, legal_builds, all_legal_actions
 
 # infinity const for evaluation win/lose
 INF = 10 ** 9
@@ -36,7 +36,7 @@ def maxn(board, depth, player_index, game_config, stats, ancestor_index=None, an
     best_vector = None
 
     player_id = game_config.get_player_id(player_index)
-    actions = generate_actions(board, player_id)
+    actions = all_legal_actions(board, player_id)
     actions = order_moves(board, actions)
 
     if not actions:
