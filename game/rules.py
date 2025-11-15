@@ -107,24 +107,5 @@ def game_over(board: Board) -> bool:
                 if cell.height == 3 and cell.worker_id is not None:
                     return True
 
-        # Elimination check: remove players who cannot move any of their workers
-        eliminated_players = []
-        for player in board.remaining_players:
-            player_workers = [w for w in board.workers if w.owner == player]
-            can_move = False
-            for worker in player_workers:
-                if legal_moves(board, worker.pos):
-                    can_move = True
-                    break
-            if not can_move:
-                eliminated_players.append(player)
-
-        for player in eliminated_players:
-            if player in board.remaining_players:
-                board.remaining_players.remove(player)
-
-        # Game over if one or fewer players remain
-        if len(board.remaining_players) <= 1:
-            return True
-
-        return False
+        # Game over if only one player remains
+        return len(board.remaining_players) <= 1

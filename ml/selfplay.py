@@ -53,7 +53,7 @@ def selfplay(controller_class, game_config, model_path, dataset_path, num_games=
         turn_count = 0
         game_ml_scores = []  # Track ML scores for the game
 
-        while not game_over and not rules.game_over(board) and turn_count < 200:
+        while not game_over and turn_count < 200:
             print("\n" + "=" * 60)
             print(f"[TURN {turn_count} BEGIN] Current player: {board.current_player}")
             print("Remaining players:", board.remaining_players)
@@ -61,6 +61,18 @@ def selfplay(controller_class, game_config, model_path, dataset_path, num_games=
             for w in board.workers:
                 print(f"  {w.id}({w.owner}) at {w.pos} h={board.get_cell(w.pos).height}")
             print("=" * 60)
+
+            # Start-of-turn elimination
+            if not rules.all_legal_actions(board, board.current_player):
+                print(f"[ELIMINATION] {board.current_player} has no actions at turn start")
+                board.eliminate_player(board.current_player)
+                if len(board.active_players) <= 1:
+                    winner = board.active_players[0] if board.active_players else None
+                    game_over = True
+                    break
+                board.next_turn()
+                turn_count += 1
+                continue
 
             pid = board.current_player
             agent = next(a for a in agents if a.player_id == pid)
@@ -149,7 +161,7 @@ def selfplay(controller_class, game_config, model_path, dataset_path, num_games=
             game_records.append((board.clone(), action, pid, float(heuristic_score)))
 
             # Win check
-            if won or rules.game_over(board):
+            if won:
                 print("[WIN CHECK]")
                 for r in range(5):
                     for c in range(5):
@@ -165,6 +177,13 @@ def selfplay(controller_class, game_config, model_path, dataset_path, num_games=
             # Normalize current_player_index if board.next_turn assigned a player_id string
             if isinstance(board.current_player_index, str):
                 board.current_player_index = game_config.get_player_index(board.current_player_index)
+
+            if rules.game_over(board):
+                winner = board.current_player
+                print("[GAME OVER] only one player remains.")
+                game_over = True
+                break
+
             turn_count += 1
 
         # --- Serialize final board state before saving dataset and metrics ---
