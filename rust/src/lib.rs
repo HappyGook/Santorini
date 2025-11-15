@@ -11,8 +11,8 @@ use mcts_tree::{Node, Tree};
 
 const MAX_DEPTH: usize = 8; // limit search depth for safety
 
-fn next_player(p: u8) -> u8 {
-    1 - p // assumes 2 players: 0 <-> 1
+fn next_player(p: u8, num_players:u8) -> u8 {
+    (p + 1) % num_players
 }
 
 fn backpropagate(tree: &mut Tree, path: &[usize], value: f32) {
@@ -29,6 +29,7 @@ fn run_mcts_python_rules(
     board: Py<PyAny>,
     player_index: u8,
     iterations: u32,
+    num_players: u8,
 ) -> PyResult<(f32, Py<PyAny>)> {
     //  Import helper module via PyO3
     let helpers = py.import("ai.rust_helpers")?;
@@ -37,7 +38,7 @@ fn run_mcts_python_rules(
     let py_list_actions = helpers.getattr("list_actions")?;
     let py_evaluate_board = helpers.getattr("evaluate_board")?;
     let py_apply_action = helpers.getattr("apply_action")?;
-    let py_is_terminal = helpers.getattr("is_terminal")?;
+    let py_terminal_value = helpers.getattr("terminal_value")?;
 
     // Build tree with root
     let mut tree = Tree::new(board.clone_ref(py), player_index);
@@ -79,46 +80,50 @@ fn run_mcts_python_rules(
         let leaf_board_ref = leaf_board.bind(py);
 
         // 3) Check terminal / generate actions
+
         let actions: Vec<Py<PyAny>> = py_list_actions
             .call1((leaf_board_ref.clone(), leaf_player))?
             .extract()?;
 
         let leaf_value: f32;
 
-        let is_term: bool = py_is_terminal
+         let tv_opt: Option<f32> = py_terminal_value
             .call1((leaf_board_ref.clone(), player_index))?
             .extract()?;
-        if is_term {
-            leaf_value = 1.0; // treat as very good for root player
-        } else if actions.is_empty() {
-            // No actions (stuck position) -> just evaluate board
+        if let Some(tv) = tv_opt {
+    // Terminal position already: win/loss from root perspective
+            leaf_value = tv;
+}       else if actions.is_empty() {
+    // Stuck but not terminal by level-3 rule: just evaluate
             leaf_value = py_evaluate_board
-                .call1((leaf_board_ref.clone(), player_index))?
-                .extract()?;
-        } else {
-            // a) Evaluate current leaf board once
-            leaf_value = py_evaluate_board
-                .call1((leaf_board_ref.clone(), player_index))?
+            .call1((leaf_board_ref.clone(), player_index))?
+            .extract()?;
+}       else {
+    // Evaluate & expand
+    leaf_value = py_evaluate_board
+        .call1((leaf_board_ref.clone(), player_index))?
+        .extract()?;
+
+    if tree.nodes[leaf_idx].children.is_empty() {
+        let prior_per_action = 1.0f32 / actions.len() as f32;
+        for act in &actions {
+            let child_board: Py<PyAny> = py_apply_action
+                .call1((leaf_board_ref.clone(), act.bind(py)))?
                 .extract()?;
 
-            // b) Expand children on first visit
-            if tree.nodes[leaf_idx].children.is_empty() {
-                let prior_per_action = 1.0f32 / actions.len() as f32;
-                for act in &actions {
-                    let child_board: Py<PyAny> = py_apply_action
-                        .call1((leaf_board_ref.clone(), act.bind(py)))?
-                        .extract()?;
-
-                    let mut child =
-                        Node::new(child_board, next_player(leaf_player), prior_per_action);
-                    child.action_from_parent = Some(act.clone_ref(py));
-                    tree.add_child(leaf_idx, child);
-                }
-            }
+            let mut child = Node::new(
+                child_board,
+                next_player(leaf_player, num_players),   
+                prior_per_action,
+            );
+            child.action_from_parent = Some(act.clone_ref(py));
+            tree.add_child(leaf_idx, child);
         }
-        // 4) Backpropagate value up the path
-        backpropagate(&mut tree, &path, leaf_value);
     }
+}
+        // 4) Backpropagate value up the path
+            backpropagate(&mut tree, &path, leaf_value);
+        }
 
     // 5) Choose best child at root (highest visit count)
     let root = &tree.nodes[root_idx];

@@ -76,6 +76,19 @@ class Agent:
             )
             eval_value = vector
 
+        elif self.algo == "mcts":
+            print(f"[{self.player_id}] using Python MCTS ...")
+            iterations = int(self.iters) if self.iters is not None else max(1000, self.depth * 400)
+
+            vector, action = mc.mcts_search(
+                board_state,
+                player_index=player_index,
+                game_config=game_config,
+                stats=stats,
+                iterations=iterations,
+    )
+            eval_value = vector
+
         elif self.algo == "rust_mcts":
     
             print(f"[{self.player_id}] using Rust hybrid MCTS ...")
@@ -83,11 +96,17 @@ class Agent:
             value, best_action = rust.run_mcts_python_rules(
                 board_state,
                 player_index=player_index,
-                iterations=self.iters or 500
+                iterations=self.iters or 500,
+                num_players=board_state.game_config.num_players,
             )
 
+            if best_action is None:
+                action = None
+            else:
+                wid, move, build = best_action
+                worker = next((w for w in board_state.workers if w.id == wid), None)
+                action = (worker, move, build) if worker else None
             eval_value = value
-            action = best_action
 
 
         elif self.algo == "ml":
@@ -96,22 +115,17 @@ class Agent:
                 raise Exception("A trained model must be passed for ML mode")
             eval_value, action = ml_inference(board_state, player_index, self.model, stats)
 
-        else:  # "mcts"
-            # Allow overriding iterations
-            print(f"[{self.player_id}] using Rust hybrid MCTS ...")
+        else:
+            
+            raise ValueError(f"Unknown algorithm: {self.algo}")
 
-            value, best_action = rust.run_mcts_python_rules(
-                board_state,
-                player_index=player_index,
-                iterations=self.iters or 400
-            )
+        print(
+            f"[{self.player_id}][{self.algo}] nodes={stats.nodes} tt_hits={stats.tt_hits}"
+        )
 
-            eval_value = value
-            action = best_action
-
-        print(f"[{self.player_id}][{self.algo}] nodes={stats.nodes} tt_hits={stats.tt_hits}")
-
+        # ALWAYS return a (value, action) tuple
         return eval_value, action
+        
         
 
     def decide_setup(self, board_state):

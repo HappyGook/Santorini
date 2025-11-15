@@ -1,4 +1,4 @@
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 from copy import deepcopy
 from game.models import BOARD_SIZE
 from game.rules import legal_moves, legal_builds, is_win_after_move
@@ -84,3 +84,17 @@ def evaluate_board(board, root_player_index: int) -> float:
 #Evaluate the board state 
 
     return float(evaluate_mcts(board, root_player_index))
+
+def terminal_value(board, root_player_index: int) -> Optional[float]:
+    """
+    +1.0 if the root player already stands on level 3,
+    -1.0 if any OTHER player already stands on level 3,
+     None if not terminal.
+    """
+    for w in board.workers:
+        if w.pos is None:
+            continue
+        if board.get_cell(w.pos).height == MAX_LEVEL:
+            winner_idx = board.game_config.get_player_index(w.owner)
+            return 1.0 if winner_idx == root_player_index else -1.0
+    return None

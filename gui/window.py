@@ -170,7 +170,7 @@ def choose_mode_ui() -> Dict[str, Any]:
             for pid in ai_players:
                 algo = ai_vars[pid]["algo"].get()
                 depth = int(ai_vars[pid]["depth"].get())
-                iters = int(ai_vars[pid]["iters"].get()) if algo == "mcts" else None
+                iters = int(ai_vars[pid]["iters"].get()) if algo in("mcts", "rust_mcts")  else None
                 if algo == "ml":
                     # Load the ML model
                     if not ml_model_loaded:
