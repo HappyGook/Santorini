@@ -99,7 +99,7 @@ def choose_mode_ui() -> Dict[str, Any]:
         ttk.Label(r["frame"], text="Algo").grid(row=0, column=1, sticky="e")
         r["algo"] = ttk.Combobox(
             r["frame"], width=10, state="readonly",
-            values=["minimax", "maxn", "ml", "mcts","rust_mcts"], textvariable=ai_vars[pid]["algo"]
+            values=["minimax", "maxn", "ml", "mcts","rust_mcts","mcts_NN"], textvariable=ai_vars[pid]["algo"]
         )
         r["algo"].grid(row=0, column=2, padx=4)
 
@@ -140,7 +140,7 @@ def choose_mode_ui() -> Dict[str, Any]:
                 # toggle iters from algo
                 algo = ai_vars[pid]["algo"].get()
                 rows[pid]["iters"].config(
-                    state="normal" if (is_ai and algo in ("mcts", "rust_mcts")) else "disabled")
+                    state="normal" if (is_ai and algo in ("mcts", "rust_mcts","mcts_NN")) else "disabled")
             else:
                 frame.grid_remove()
 

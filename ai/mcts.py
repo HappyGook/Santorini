@@ -6,6 +6,7 @@ from game.config import GameConfig
 from game.moves import move_worker, build_block
 from game.rules import legal_moves, legal_builds
 
+from ml.inference import ml_inference
 """
     MCTS
     1 selection - follow tree with puct to leaf
@@ -128,7 +129,7 @@ def backpropagate(node, reward, root_player):
         node = node.parent
 
 #main mcts search function
-def mcts_search(board, player_index, game_config, stats, iterations=500):
+def mcts_search(board, player_index, game_config, stats, iterations=500, ml_model=None, use_nn=False):
     """
        MCTS search that returns the same format as maxn: (vector, action)
     """
@@ -142,7 +143,13 @@ def mcts_search(board, player_index, game_config, stats, iterations=500):
         if child is None:
             child = node
 
-        reward = simulate(child.board, child.player_index, game_config)#3
+        reward = simulate(
+        child.board,
+        child.player_index,
+        game_config,
+        stats,
+        ml_model if use_nn else None
+    )
         
         backpropagate(child, reward, ROOT)#4
 
@@ -168,24 +175,8 @@ def mcts_search(board, player_index, game_config, stats, iterations=500):
 
     return vector, action
 
+def simulate(board, player_index, game_config, stats, ml_model=None, steps=12, eps=0.15):
 
-""""def uct_value(node, parent_player_index):
-    
-    if node.visits == 0:
-        return INF
-
-    C = 1.4  # exploration parameter
-    exploitation = node.value / node.visits
-
-    # If opponent's node, we want to minimize their value (adversarial)
-    if node.player_index != parent_player_index:
-        exploitation = -exploitation
-
-    exploration = C * math.sqrt(math.log(node.parent.visits) / node.visits)
-    return exploitation + exploration
-"""
-
-def simulate(board, player_index, game_config, steps=12, eps=0.15):
     """Fast heuristic-based simulation from the current position"""
     temp_board = board.clone()
     current_index = player_index
@@ -205,6 +196,14 @@ def simulate(board, player_index, game_config, steps=12, eps=0.15):
                 return 1.0 if current_index == player_index else -1.0
         build_block(temp_board, w, build)
         current_index = (current_index + 1) % len(game_config.player_ids)
+
+    # nNN-based evaluation
+    if ml_model is not None:
+        #perspective so start with player index
+        eval_value = ml_inference (temp_board, player_index, ml_model, stats)
+        if eval_value is not None:
+            return float(eval_value)
+
     # fallback heuristic
     root_pid = game_config.get_player_id(player_index)
     v = evaluate(temp_board, root_pid)
@@ -212,13 +211,13 @@ def simulate(board, player_index, game_config, steps=12, eps=0.15):
 
 
 
-def mcts(board, depth, player_index, game_config, stats, iters=None, **kwargs):
+def mcts(board, depth, player_index, game_config, stats, iters=None, ml_model=None, use_nn=False, **kwargs):
     """
     MCTS wrapper that matches the maxn function signature for easy agent integration
     The depth parameter is converted to iterations
     """
     iterations = int(iters) if iters is not None else max(1000, depth * 400)
-    return mcts_search(board, player_index, game_config, stats, iterations)
+    return mcts_search(board, player_index, game_config, stats, iterations, ml_model=ml_model, use_nn=use_nn)
 
 
 def generate_actions(board, player_id) -> List[Action]:

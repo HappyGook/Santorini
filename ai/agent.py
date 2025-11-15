@@ -10,6 +10,8 @@ import ai.mcts as mc
 
 from game.board import BOARD_SIZE
 from ai.phrases import PHRASES_BY_PLAYER
+from ai.mcts import mcts, SearchStats
+
 
 import rust
 
@@ -30,7 +32,7 @@ def make_stats():
 
 
 
-AlgoName = Literal["minimax", "maxn", "mcts"]
+AlgoName = Literal["minimax", "maxn", "mcts","rust_mcts""mcts_NN"]
 
 class Agent:
     def __init__(self, player_id: str, algo: AlgoName = "minimax",
@@ -42,9 +44,10 @@ class Agent:
         self.algo: AlgoName = algo
         self.model = model
         self.iters = iters
+        self.model = model
 
     def decide_action(self, board_state)-> Tuple[float | list[float], Optional[tuple]]:
-
+        stats = SearchStats()
         game_config = board_state.game_config
         player_index = game_config.get_player_index(self.player_id)
 
@@ -88,6 +91,22 @@ class Agent:
                 iterations=iterations,
     )
             eval_value = vector
+
+        elif self.algo == "mcts_NN":
+            print(f"[{self.player_id}] using MCTS-NN ...")
+            # NEW: MCTS that uses NN at simulation leaf
+            vector, action = mc.mcts(
+                board_state,
+                player_index=player_index,
+                game_config=game_config,
+                iters=self.iters,
+                depth=self.depth,
+                stats=stats,
+                ml_model=self.model,
+                use_nn=True,
+            )
+            eval_value = vector
+
 
         elif self.algo == "rust_mcts":
     
