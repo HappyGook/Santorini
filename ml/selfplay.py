@@ -16,7 +16,15 @@ def make_agents(game_config, model, training_mode):
         return [Agent(f"P{i+1}", algo="maxn", depth=2) for i in range(game_config.num_players)]
     return [Agent(f"P{i+1}", algo="ml", model=model) for i in range(game_config.num_players)]
 
-
+def compute_reward(winner, win_type, agents):
+    """Reward shaping endpoint."""
+    if win_type == "climb":
+        win_value = 1.0
+    elif win_type == "elimination":
+        win_value = 0.25
+    else:
+        win_value = 0.0
+    return {a.player_id: (win_value if a.player_id == winner else -1.0) for a in agents}
 
 def selfplay(controller_class, game_config, model_path, dataset_path, num_games=1000, training_mode="selfplay"):
     ml_model = SantoNeuroNet()
@@ -215,7 +223,9 @@ def selfplay(controller_class, game_config, model_path, dataset_path, num_games=
                 'mean_ml_score': float(sum(game_ml_scores) / len(game_ml_scores)),
                 'ml_score_std': float(torch.tensor(game_ml_scores).std().item()) if len(game_ml_scores) > 1 else 0.0,
             })
-            rewards = {a.player_id: (1.0 if winner == a.player_id else -1.0) for a in agents}
+            # Elimination wins should not be rewarded as high as actual level 3 wins
+            win_type = "climb" if any(cell.height == 3 and cell.worker_id for cell in board.grid.values()) else "elimination"
+            rewards = compute_reward(winner, win_type, agents)
 
             states, targets = [], []
             gamma = 0.9 # Temporal decay so we reinforce better

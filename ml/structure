@@ -31,7 +31,5 @@ Symmetry test after one game -- PASSED
 └─────────┴─────────────────┴──────────────┴─────────────────┴──────────────────┘
 
 SELFPLAY
-TODO: Check win conditions for victories without reaching height 3
-TODO: No remaining actions when still are ? -> Checked all_legal_actions, more needed?
-TODO: Make sure selfplay games in logs actually end correctly
-TODO: After that start with proper training from scratch
+TODO: Make sure selfplay games in logs actually end correctly (KINDA DID?)
+TODO: In learning progress, if more issues arise, fix and restart
