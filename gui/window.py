@@ -171,11 +171,11 @@ def choose_mode_ui() -> Dict[str, Any]:
                 algo = ai_vars[pid]["algo"].get()
                 depth = int(ai_vars[pid]["depth"].get())
                 iters = int(ai_vars[pid]["iters"].get()) if algo in("mcts", "rust_mcts")  else None
-                if algo == "ml":
+                if algo == "ml" or algo == "mcts_NN":
                     # Load the ML model
                     if not ml_model_loaded:
                         ml_model = SantoNeuroNet()
-                        ml_model.load_checkpoint("ml/learned_models/best.pt")
+                        ml_model.load_checkpoint("ml/learned_models/model1.pt")
                         ml_model_loaded = True
                     ai[pid] = {"algo": algo, "depth": depth, "iters": iters, "model": ml_model}
                 else:

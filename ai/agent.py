@@ -32,7 +32,7 @@ def make_stats():
 
 
 
-AlgoName = Literal["minimax", "maxn", "mcts","rust_mcts""mcts_NN"]
+AlgoName = Literal["minimax", "maxn", "mcts","rust_mcts","mcts_NN"]
 
 class Agent:
     def __init__(self, player_id: str, algo: AlgoName = "minimax",
