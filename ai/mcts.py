@@ -200,9 +200,11 @@ def simulate(board, player_index, game_config, stats, ml_model=None, steps=12, e
     # nNN-based evaluation
     if ml_model is not None:
         #perspective so start with player index
-        eval_value = ml_inference (temp_board, player_index, ml_model, stats)
-        if eval_value is not None:
-            return float(eval_value)
+        value, _ = ml_inference(temp_board, player_index, ml_model, stats)
+
+    # clip & return immediately
+        value = max(-0.5, min(0.5, float(value)))
+        return value
 
     # fallback heuristic
     root_pid = game_config.get_player_id(player_index)
