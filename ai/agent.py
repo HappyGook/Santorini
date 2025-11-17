@@ -11,9 +11,11 @@ import ai.mcts as mc
 from game.board import BOARD_SIZE
 from ai.phrases import PHRASES_BY_PLAYER
 from ai.mcts import mcts, SearchStats
-
+from game.rules import legal_moves, is_win_after_move, legal_builds
+from ai.heuristics import find_win_in_one
 
 import rust
+
 
 class FallbackStats: # fallback for search stats 
     __slots__ = ("nodes", "tt_hits")
@@ -115,6 +117,13 @@ class Agent:
             player_index = game_config.get_player_index(self.player_id)
             num_players = game_config.num_players
 
+            win_action = find_win_in_one(board_state, self.player_id)
+            if win_action is not None:
+            # Immediate win – no need to call MCTS
+                eval_value = 1.0
+                action = win_action
+                return eval_value, action
+
             iterations = self.iters if self.iters is not None else 400
 
             value, best_action = rust.run_mcts_python_rules(
@@ -125,7 +134,14 @@ class Agent:
         )
 
             eval_value = value
-            action = best_action
+        
+            if best_action is None:
+                action = None
+            else:
+                worker_id, move_pos, build_pos = best_action  # from Rust: id string + coords
+                # find the real Worker object on the current board
+                worker = next(w for w in board_state.workers if w.id == worker_id)
+                action = (worker, move_pos, build_pos)
 
 
         elif self.algo == "ml":

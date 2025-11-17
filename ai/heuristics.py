@@ -8,8 +8,29 @@ For now I have made 3 factors:
 """
 
 from game.board import BOARD_SIZE
-from game.rules import legal_moves, is_win_after_move
+from game.rules import legal_moves, is_win_after_move, legal_builds
 from game.models import MAX_LEVEL
+
+def local_tower_control(board_state, workers):
+    """
+    Sum of heights of level-2/3 cells around each worker.
+    Higher = more control over useful towers.
+    """
+    score = 0
+    for w in workers:
+        if w.pos is None:
+            continue
+        x0, y0 = w.pos
+        for dx in (-1, 0, 1):
+            for dy in (-1, 0, 1):
+                if dx == 0 and dy == 0:
+                    continue
+                nx, ny = x0 + dx, y0 + dy
+                if 0 <= nx < BOARD_SIZE and 0 <= ny < BOARD_SIZE:
+                    h = board_state.get_cell((nx, ny)).height
+                    if h >= 2:   # only count useful towers
+                        score += h
+    return score
 
 def distance_to_nearest_level3(board_state, pos):
     #Chebyshev distance
@@ -119,26 +140,31 @@ def order_moves(board, moves):
 
 def evaluate_mcts(board_state, player_id):
     # for rust mcts especially
-
+    game_config = board_state.game_config
     # 0 1 2 == p1 p2 p3
     if isinstance(player_id, int):
-        player_id = board_state.game_config.get_player_id(player_id)
+        root_player_id = game_config.get_player_id(player_id)
+    else:
+        root_player_id = player_id
 
     # --- 1. Tactical win/loss check ---
     my_workers = [w for w in board_state.workers if w.owner == player_id]
     opponent_workers = [w for w in board_state.workers if w.owner != player_id]
 
+    
+    root_player_id = game_config.get_player_id(player_id)
     # Win in one move?
     for w in my_workers:
-        for move in legal_moves(board_state, w.pos):
-            if is_win_after_move(board_state, w.pos, move):
-                return 1.0
+        if w.pos is None:
+            continue
+        src = w.pos
+        for move in legal_moves(board_state, src):
+            if is_win_after_move(board_state, src, move):
+                return 0.9  # "almost certain win" for root
 
-    # Opponent win in one move → penalize
-    for w in opponent_workers:
-        for move in legal_moves(board_state, w.pos):
-            if is_win_after_move(board_state, w.pos, move):
-                return -1.0
+    # 2) If any opponent can win in one from this state, make it very bad
+    if opponent_can_win_in_one(board_state, root_player_id):
+        return -0.9  # "almost certain loss" for root
     # --- 2. Positional heuristic ---
     height_adv = sum(
         board_state.get_cell(w.pos).height for w in my_workers
@@ -200,9 +226,11 @@ def evaluate_mcts(board_state, player_id):
         opp_dist += (BOARD_SIZE - dist)
 
     dist_sum = my_dist - opp_dist
-
+    my_tower_ctrl = local_tower_control(board_state, my_workers)
+    opp_tower_ctrl = local_tower_control(board_state, opponent_workers)
+    tower_ctrl = my_tower_ctrl - opp_tower_ctrl
     # --- 3. Weighted combination ---
-    raw = 8 * height_adv + 2 * mobility + 6 * dist_sum
+    raw = 8 * height_adv + 2 * mobility + 6 * dist_sum + 4* tower_ctrl
 # Normalize to [-0.5, 0.5]
     v = raw / 100.0
     if v > 0.5:
@@ -210,3 +238,43 @@ def evaluate_mcts(board_state, player_id):
     if v < -0.5:
         v = -0.5
     return v   
+
+
+def find_win_in_one(board, player_id):
+    
+    #Returns (worker, move_pos, build_pos) if player_id can win in one move,
+    #otherwise returns None.
+    
+    workers = [w for w in board.workers if w.owner == player_id]
+
+    for w in workers:
+        if w.pos is None:
+            continue
+        src = w.pos
+        for move in legal_moves(board, src):
+            # Win condition is purely about the move, not the build
+            if is_win_after_move(board, src, move):
+                # After a winning move, any legal build is fine; pick first
+                builds = legal_builds(board, move)
+                build_pos = builds[0] if builds else move
+                return (w, move, build_pos)
+
+    return None
+
+def opponent_can_win_in_one(board_state, root_player_id: str) -> bool:
+    # Returns True if any opponent can win in one move against root_player_id
+    game_config = board_state.game_config
+
+    for opp_id in game_config.player_ids:
+        if opp_id == root_player_id:
+            continue
+
+        for w in board_state.workers:
+            if w.owner != opp_id or w.pos is None:
+                continue
+
+            src = w.pos
+            for move in legal_moves(board_state, src):
+                if is_win_after_move(board_state, src, move):
+                    return True
+    return False

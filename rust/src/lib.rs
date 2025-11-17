@@ -3,6 +3,8 @@ use pyo3::{prelude::*, types::PyModule};
 use rand::{SeedableRng, rngs::SmallRng};
 pub mod mcts_tree;
 use mcts_tree::{Node, Tree};
+use std::collections::HashMap;
+
 
 // cd Santorini/rust
 // cargo build --release
@@ -45,6 +47,8 @@ fn run_mcts_python_rules(
     let root_idx = 0usize;
 
     let mut _rng = SmallRng::seed_from_u64(12345);
+
+    let mut eval_cache: HashMap<usize, f32> = HashMap::new();
 
     let root_board_ref = board.bind(py);
 
@@ -129,15 +133,29 @@ if !root_actions.is_empty() {
     // Terminal position already: win/loss from root perspective
             leaf_value = tv;
 }       else if actions.is_empty() {
-    // Stuck but not terminal by level-3 rule: just evaluate
-            leaf_value = py_evaluate_board
+    // Stuck but not terminal by level-3 rule: just evaluate (with cache)
+        let key = leaf_board.as_ptr() as usize;
+        if let Some(v) = eval_cache.get(&key) {
+            leaf_value = *v;
+    } else {
+        let v: f32 = py_evaluate_board
             .call1((leaf_board_ref.clone(), player_index))?
             .extract()?;
+        eval_cache.insert(key, v);
+        leaf_value = v;
+    }
 }       else {
-    // Evaluate & expand
-    leaf_value = py_evaluate_board
-        .call1((leaf_board_ref.clone(), player_index))?
-        .extract()?;
+    // Evaluate & expand (with cache)
+    let key = leaf_board.as_ptr() as usize;
+    if let Some(v) = eval_cache.get(&key) {
+        leaf_value = *v;
+    } else {
+        let v: f32 = py_evaluate_board
+            .call1((leaf_board_ref.clone(), player_index))?
+            .extract()?;
+        eval_cache.insert(key, v);
+        leaf_value = v;
+    }
 
     if tree.nodes[leaf_idx].children.is_empty() {
         let prior_per_action = 1.0f32 / actions.len() as f32;

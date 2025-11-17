@@ -5,7 +5,7 @@ from game.rules import legal_moves, legal_builds, player_has_moves
 from game.moves import move_worker, build_block
 from ai.heuristics import evaluate_mcts
 from game.models import MAX_LEVEL
-Action = Tuple[object, Tuple[int, int], Tuple[int, int]]
+Action = Tuple[int, Tuple[int, int], Tuple[int, int]]
 
 
 def list_actions(board, player_index: int) -> List[Action]:
@@ -24,45 +24,38 @@ def list_actions(board, player_index: int) -> List[Action]:
     ]
 
     for worker in workers:
-        src = worker.pos         
-        # legal move positions for this worker
-        for move in legal_moves(board, src):
-            # simulate move on a copy
-            temp_board = deepcopy(board)
-            temp_worker = next(w for w in temp_board.workers if w.id == worker.id)
-            move_worker(temp_board, temp_worker, move)
+        src = worker.pos
 
-            # legal builds from the new position
-            for build in legal_builds(temp_board, move):
-                actions.append((worker, move, build))
+        # legal move positions for this worker (on the original board)
+        for move in legal_moves(board, src):
+            # legal build positions from the new position
+            for build in legal_builds(board, move):
+                # store only worker.id, not the whole worker object
+                actions.append((worker.id, move, build))
 
     return actions
-
 
 
 def apply_action(board, action: Action):
     # return a new board state after applying the given action
 
-    worker_id, move_pos, build_pos = action
+    worker_id, move_pos, build_pos = action  # worker_id is a str like "P2A"
 
     new_board = deepcopy(board)
-    
-    # find the worker object in the copied board
-    target_id = worker_id.id
 
+    # find the worker object in the copied board
     worker = None
     for w in new_board.workers:
-        if w.id == target_id:
+        if w.id == worker_id:
             worker = w
             break
 
     if worker is None:
-        # Defensive: avoid StopIteration and give a clear error
-        raise RuntimeError(f"apply_action: no worker with id {target_id!r} on new_board")
-    # apply move and build using your existing game.moves functions
+        raise RuntimeError(f"apply_action: no worker with id {worker_id!r} on new_board")
+
     move_worker(new_board, worker, move_pos)
     build_block(new_board, worker, build_pos)
-    
+
     return new_board
 
 
