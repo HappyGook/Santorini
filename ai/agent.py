@@ -109,23 +109,23 @@ class Agent:
 
 
         elif self.algo == "rust_mcts":
-    
             print(f"[{self.player_id}] using Rust hybrid MCTS ...")
 
-            value, best_action = rust.run_mcts_python_rules(
-                board_state,
-                player_index=player_index,
-                iterations=self.iters or 500,
-                num_players=board_state.game_config.num_players,
-            )
+            game_config = board_state.game_config
+            player_index = game_config.get_player_index(self.player_id)
+            num_players = game_config.num_players
 
-            if best_action is None:
-                action = None
-            else:
-                wid, move, build = best_action
-                worker = next((w for w in board_state.workers if w.id == wid), None)
-                action = (worker, move, build) if worker else None
+            iterations = self.iters if self.iters is not None else 400
+
+            value, best_action = rust.run_mcts_python_rules(
+            board_state,
+            player_index=player_index,
+            iterations=iterations,
+            num_players=num_players,
+        )
+
             eval_value = value
+            action = best_action
 
 
         elif self.algo == "ml":
