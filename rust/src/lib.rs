@@ -46,6 +46,38 @@ fn run_mcts_python_rules(
 
     let mut _rng = SmallRng::seed_from_u64(12345);
 
+    let root_board_ref = board.bind(py);
+
+// get all legal actions for root
+let root_actions: Vec<Py<PyAny>> =
+    py_list_actions
+        .call1((root_board_ref.clone(), player_index))?
+        .extract()?;
+
+// if there are moves, create children for each
+if !root_actions.is_empty() {
+    let prior = 1.0f32 / root_actions.len() as f32;
+    for act in &root_actions {
+        // apply action on a copy of the board in Python
+        let child_board: Py<PyAny> =
+            py_apply_action
+                .call1((root_board_ref.clone(), act.bind(py)))?
+                .extract()?;
+
+        // create child node
+        let mut child = Node::new(
+            child_board,
+            next_player(player_index, num_players),
+            prior,
+        );
+        child.action_from_parent = Some(act.clone_ref(py));
+
+        // attach to root
+        tree.add_child(root_idx, child);
+    }
+}
+// 
+
     for _iter in 0..iterations {
         //Optional debug
         // if iter % 50 == 0 {
@@ -61,9 +93,12 @@ fn run_mcts_python_rules(
         loop {
             let node = &tree.nodes[node_idx];
 
-            if node.children.is_empty() || path.len() >= MAX_DEPTH {
-                break; // reached a leaf or depth limit
-            }
+            if path.len() >= MAX_DEPTH {
+                break;
+}
+            if node_idx != root_idx && node.children.is_empty() {
+            break; // leaf deeper in tree
+}
 
             if let Some(child_idx) = tree.select_child(node_idx) {
                 node_idx = child_idx;

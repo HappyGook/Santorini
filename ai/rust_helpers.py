@@ -1,7 +1,7 @@
 from typing import List, Tuple, Optional
 from copy import deepcopy
 from game.models import BOARD_SIZE
-from game.rules import legal_moves, legal_builds, is_win_after_move
+from game.rules import legal_moves, legal_builds, player_has_moves
 from game.moves import move_worker, build_block
 from ai.heuristics import evaluate_mcts
 from game.models import MAX_LEVEL
@@ -65,19 +65,38 @@ def apply_action(board, action: Action):
     
     return new_board
 
-def is_terminal(board, player_index:int) ->bool:
-    #true if the game is over (win/loss)
 
-    for worker in board.workers:
-        src =  worker.pos
-
-        for worker in board.workers:
-            if worker.pos is None:
-                continue
-        cell = board.get_cell(worker.pos)
+def terminal_value(board, root_player_index: int) -> float | None:
+    """
+    Return:
+      +1.0 if root player has already won,
+      -1.0 if someone else has already won,
+      0.0 if no moves left for root player (loss),
+      None otherwise (non-terminal).
+    """
+    # 1) someone stands on level 3
+    winner_owner = None
+    for w in board.workers:
+        if w.pos is None:
+            continue
+        cell = board.get_cell(w.pos)
         if cell.height == MAX_LEVEL:
-            return True
-    return False
+            winner_owner = w.owner
+            break
+
+    root_player_id = board.game_config.get_player_id(root_player_index)
+
+    if winner_owner is not None:
+        if winner_owner == root_player_id:
+            return 1.0
+        else:
+            return -1.0
+
+    # 2) no moves left for root player -> treat as loss
+    if not player_has_moves(board, root_player_id):
+        return -1.0
+
+    return None
 
 
 def evaluate_board(board, root_player_index: int) -> float:
