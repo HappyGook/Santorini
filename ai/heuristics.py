@@ -28,7 +28,7 @@ def local_tower_control(board_state, workers):
                 nx, ny = x0 + dx, y0 + dy
                 if 0 <= nx < BOARD_SIZE and 0 <= ny < BOARD_SIZE:
                     h = board_state.get_cell((nx, ny)).height
-                    if h >= 2:   # only count useful towers
+                    if h >= 1:   # count since level 1
                         score += h
     return score
 
@@ -230,7 +230,7 @@ def evaluate_mcts(board_state, player_id):
     opp_tower_ctrl = local_tower_control(board_state, opponent_workers)
     tower_ctrl = my_tower_ctrl - opp_tower_ctrl
     # --- 3. Weighted combination ---
-    raw = 8 * height_adv + 2 * mobility + 6 * dist_sum + 4* tower_ctrl
+    raw = 8 * height_adv + 3 * mobility + 6 * dist_sum + 4* tower_ctrl
 # Normalize to [-0.5, 0.5]
     v = raw / 100.0
     if v > 0.5:

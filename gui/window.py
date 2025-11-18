@@ -50,8 +50,14 @@ def choose_mode_ui() -> Dict[str, Any]:
     """Enhanced mode selection with 2-player and 3-player options"""
     root = tk.Tk()
     root.title("Choose Game Mode")
-    root.geometry("440x420")
+    root.geometry("600x650")
     root.resizable(True, True)
+    #azure
+    here = Path(__file__).resolve().parent
+    azure_dir = here / "themes" / "Azure-ttk-theme-main"
+    azure_tcl = azure_dir / "azure.tcl"
+    root.tk.call("source", str(azure_tcl))
+    root.tk.call("set_theme", "light")   # or "light"
 
     # Number of players selection
     ttk.Label(root, text="Number of Players:", padding=10, font=("Arial", 12, "bold")).pack(anchor="w")
@@ -212,6 +218,14 @@ def build_players(mode_sel, game_config):
 class SantoriniTk(tk.Tk):
     def __init__(self, board: Board, controller: GameController, game_config: GameConfig):
         super().__init__()
+#azure theme
+        here = Path(__file__).resolve().parent
+        azure_dir = here / "themes" / "Azure-ttk-theme-main"
+        azure_tcl = azure_dir / "azure.tcl"
+        self.tk.call("source", str(azure_tcl))
+        self.tk.call("set_theme", "light")   # or "light" 
+
+
         self.title("Santorini")
         self.board = board
         self.game_over = False
