@@ -85,13 +85,21 @@ class Board:
             print()  # Blank line between rows for readability
 
     def eliminate_player(self, pid: str):
-        if pid in self.active_players:
-            removed_idx = self.active_players.index(pid)
-            self.active_players.remove(pid)
-            # If the eliminated player was current, move to next
-            if self.current_player == pid:
-                if self.active_players:
-                    next_idx = removed_idx % len(self.active_players)
-                    self.current_player_index = next_idx
-                else:
-                    self.current_player_index = 0
+        if pid not in self.active_players:
+            return
+
+
+        was_current = (self.active_players[self.current_player_index] == pid)
+        removed_idx = self.active_players.index(pid)
+
+        self.active_players.remove(pid)
+
+        # Adjust current_player_index
+        if not self.active_players:
+            self.current_player_index = 0
+        elif was_current:
+            # If eliminated was current -> move to next
+            self.current_player_index = removed_idx % len(self.active_players)
+        elif removed_idx < self.current_player_index:
+            # eliminated before current -> shift down
+            self.current_player_index -= 1
