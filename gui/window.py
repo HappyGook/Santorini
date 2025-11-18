@@ -1,6 +1,15 @@
 import tkinter as tk
 from tkinter import ttk
 from typing import Dict, Any
+from tkinter import font as tkfont
+
+import ctypes
+try:
+    ctypes.windll.shcore.SetProcessDpiAwareness(1)
+except:
+    pass
+
+
 import os
 
 from ai.heuristics import evaluate
@@ -18,6 +27,11 @@ from game.config import CELL, MARGIN, COLOR_MOVE, COLOR_BUILD, COLOR_SELECTED, P
 from game.moves import place_worker
 from ml.model import SantoNeuroNet
 
+
+TITLE_FONT = ("Segoe UI", 14, "bold")     # headings
+SUBTITLE_FONT = ("Segoe UI", 12, "bold")  # section titles
+BODY_FONT = ("Segoe UI", 11)              # normal text
+SMALL_FONT = ("Segoe UI", 10)  
 
 
 def place_workers_for_setup(board: Board, game_config: GameConfig) -> None:
@@ -50,17 +64,17 @@ def choose_mode_ui() -> Dict[str, Any]:
     """Enhanced mode selection with 2-player and 3-player options"""
     root = tk.Tk()
     root.title("Choose Game Mode")
-    root.geometry("600x650")
+    root.geometry("1200x1000")
     root.resizable(True, True)
     #azure
     here = Path(__file__).resolve().parent
     azure_dir = here / "themes" / "Azure-ttk-theme-main"
     azure_tcl = azure_dir / "azure.tcl"
     root.tk.call("source", str(azure_tcl))
-    root.tk.call("set_theme", "light")   # or "light"
+    root.tk.call("set_theme", "dark")   # or "light"
 
     # Number of players selection
-    ttk.Label(root, text="Number of Players:", padding=10, font=("Arial", 12, "bold")).pack(anchor="w")
+    ttk.Label(root, text="Number of Players:", padding=10, font=("Segoe", 12, "bold")).pack(anchor="w")
 
     players_var = tk.StringVar(value="2")
     player_frame = ttk.Frame(root)
@@ -70,7 +84,7 @@ def choose_mode_ui() -> Dict[str, Any]:
     ttk.Radiobutton(player_frame, text="3 Players", variable=players_var, value="3", padding=5).pack(anchor="w")
 
     # Game mode selection
-    ttk.Label(root, text="Game Mode:", padding=10, font=("Arial", 12, "bold")).pack(anchor="w")
+    ttk.Label(root, text="Game Mode:", padding=10, font=("Segoe", 12, "bold")).pack(anchor="w")
 
     mode_var = tk.StringVar(value="pvai")
     mode_frame = ttk.Frame(root)
@@ -223,7 +237,14 @@ class SantoriniTk(tk.Tk):
         azure_dir = here / "themes" / "Azure-ttk-theme-main"
         azure_tcl = azure_dir / "azure.tcl"
         self.tk.call("source", str(azure_tcl))
-        self.tk.call("set_theme", "light")   # or "light" 
+        self.tk.call("set_theme", "dark")   # or "light" 
+
+        self.moves_font = tkfont.Font(self, family="Segoe UI", size=10)
+        self.moves_header_font = tkfont.Font(self, family="Segoe UI", size=11, weight="bold")
+        
+        style = ttk.Style(self)
+        style.configure("Treeview", font=self.moves_font, rowheight=50)
+        style.configure("Treeview.Heading", font=self.moves_header_font)
 
 
         self.title("Santorini")
@@ -231,7 +252,10 @@ class SantoriniTk(tk.Tk):
         self.game_over = False
         self.controller = controller
         self.game_config = game_config
+        self.cell_size = CELL
         
+       
+
         # Initialize game notation
         self.notation = GameNotation()
 
@@ -244,28 +268,47 @@ class SantoriniTk(tk.Tk):
             self.dataset.save(dataset_path)
         self.dataset_path = dataset_path
 
-        w = h = MARGIN * 2 + CELL * BOARD_SIZE
+        w = h = MARGIN * 2 + self.cell_size * BOARD_SIZE
 
+        sidebar_width = 1000
+        window_width = w + sidebar_width + 40   # +40 for padding/borders
+        window_height = h + 600
+        screen_w = self.winfo_screenwidth()
+        screen_h = self.winfo_screenheight()
+        window_width = min(window_width, screen_w - 50)
+        window_height = min(window_height, screen_h - 50)
+
+        self.geometry(f"{window_width}x{window_height}")
+        
         # Main frame to hold board and dialogue side by side
         main_frame = tk.Frame(self)
         main_frame.pack(fill="both", expand=True)
 
         # Left: Game board (canvas)
-        self.canvas = tk.Canvas(main_frame, width=w, height=h, bg="white")
-        self.canvas.pack(side="left", padx=0, pady=0)
+        self.canvas = tk.Canvas(
+            main_frame,
+            width=w,
+            height=h,
+            bg="#1e1e2e",          # dark background
+            highlightthickness=0   # remove ugly border
+        )
+        self.canvas.pack(side="left", fill="both", expand=True, padx=0, pady=0)
+
+        self.canvas.bind("<Configure>", self.on_canvas_resize)
         self.load_images()
 
         # Dialogue and info on the right
         right_frame = tk.Frame(main_frame)
         right_frame.pack(side="left", fill="y", padx=10, pady=0)
 
+        
         # Dialogue area
-        dialogue_title = tk.Label(right_frame, text="Dialogue", font=("Arial", 12, "bold"))
+        dialogue_title = tk.Label(right_frame, text="Dialogue", font=("Segoe", 12, "bold"))
         dialogue_title.pack(anchor="nw", pady=(0, 4))
         self.dialogue_label = tk.Label(
             right_frame,
             text="",
-            font=("Arial", 11),
+            font=("Segoe", 13),
             wraplength=220,
             justify="left",
             anchor="nw"
@@ -284,6 +327,34 @@ class SantoriniTk(tk.Tk):
         self.player_info_frame.pack(fill="x", pady=5)
 
         self.create_player_indicators()
+        
+
+        #notatoion log
+        notation_frame = ttk.LabelFrame(right_frame, text="Logs", padding=(5, 5))
+        notation_frame.pack(fill="both", expand=True, pady=10)
+
+        # Treeview for modern log display
+        self.notation_view = ttk.Treeview(
+            notation_frame,
+            columns=("move",),
+            show="headings",
+            height=12
+        )
+        self.notation_view.heading("move", text="Moves")
+        self.notation_view.column("move", anchor="w", width=350)
+        self.notation_view.pack(fill="both", expand=True)
+
+        # Scrollbar
+        scroll = ttk.Scrollbar(
+            notation_frame,
+            orient="vertical",
+            command=self.notation_view.yview
+        )
+        self.notation_view.configure(yscroll=scroll.set)
+        scroll.pack(side="right", fill="y")
+
+    
+
 
         #ui for interaction
 
@@ -345,6 +416,8 @@ class SantoriniTk(tk.Tk):
         return False
 
     def load_images(self):
+
+        size = self.cell_size
         #Load & cache all tiles/workers, resized to CELL size
         base = Path(__file__).resolve().parent / "assets"
         tiles_dir = base / "tiles"
@@ -361,7 +434,7 @@ class SantoriniTk(tk.Tk):
         for h, name in tiles.items():
             p = tiles_dir / name
             if p.exists():
-                img = Image.open(p).convert("RGBA").resize((CELL, CELL), Image.NEAREST)
+                img = Image.open(p).convert("RGBA").resize((size, size), Image.NEAREST)
                 self.tiles[h] = ImageTk.PhotoImage(img)
             else:
                 self.tiles[h] = None
@@ -372,7 +445,7 @@ class SantoriniTk(tk.Tk):
             p = base / "workers"/f"{pid}.png"
             if p.exists():
                 #worker abit smaller than cell
-                w = int(CELL * 0.75)
+                w = int(size * 0.75)
                 img = Image.open(p).convert("RGBA").resize((w, w), Image.LANCZOS)
                 self.worker_img[pid] = ImageTk.PhotoImage(img)
             else:
@@ -411,6 +484,7 @@ class SantoriniTk(tk.Tk):
             worker = next((w for w in self.board.workers if w.id == wid), None)
             if worker:
                 self.notation.record_setup(worker)
+                self.update_notation()
             self.draw(f"{pid}: placed {wid} at {coords_to_notation(pos)}")
         else:
             self.setup_workers()
@@ -457,24 +531,56 @@ class SantoriniTk(tk.Tk):
 
         for i in range(self.game_config.num_players):
             player_id = self.game_config.get_player_id(i)
+            color = PLAYER_COLORS.get(player_id, "#666666")
 
-            frame = tk.Frame(self.player_info_frame, relief="raised", borderwidth=2)
+        # Frame uses player color as background
+            frame = tk.Frame(
+                self.player_info_frame,
+                bg=color,
+                relief="flat",
+                borderwidth=2,
+                highlightthickness=1,
+                highlightbackground="#000"   # thin border to separate players
+        )
             frame.pack(side="left", padx=5, pady=2)
 
-            color = PLAYER_COLORS.get(player_id, "gray")
+        # Color dot (optional)
+            color_label = tk.Label(
+                frame,
+                text="●",
+                fg="#3b3f51",
+                bg=color,
+                font=("Segoe UI", 16, "bold")
+         )
+            color_label.pack(side="left", padx=(4, 2))
 
-            # Player color indicator
-            color_label = tk.Label(frame, text="●", fg=color, font=("Arial", 20))
-            color_label.pack(side="left")
-
-            # Player info
+        # Player info text
             player_type = self.controller.players[player_id]["type"]
             text = f"{player_id} ({player_type})"
-            label = tk.Label(frame, text=text, font=("Arial", 10))
-            label.pack(side="left", padx=(5, 10))
+            label = tk.Label(
+                frame,
+                text=text,
+                font=("Segoe UI", 10),
+                bg=color,
+                fg="#3b3f51"
+            )
+            label.pack(side="left", padx=(2, 6))
 
             self.player_labels[player_id] = frame
 
+
+    def update_notation(self):
+        """Refresh notation panel from self.notation.moves."""
+        # clear existing rows
+        for item in self.notation_view.get_children():
+            self.notation_view.delete(item)
+
+        # insert all moves with numbering
+        for idx, move_text in enumerate(self.notation.moves, start=1):
+            self.notation_view.insert("", "end", values=(f"{idx}. {move_text}",))
+        self.notation_view.yview_moveto(1.0)
+
+        
     def update_current_player_display(self):
         """Highlight current player in the indicator"""
         for player_id, frame in self.player_labels.items():
@@ -484,10 +590,12 @@ class SantoriniTk(tk.Tk):
                 frame.config(bg="SystemButtonFace", relief="raised", borderwidth=1)
 
     def cell_box(self, r:int, c:int):
-        x1 = MARGIN + c * CELL
-        y1 = MARGIN + r * CELL
-        x2 = x1 + CELL
-        y2 = y1 + CELL
+
+        size = self.cell_size
+        x1 = MARGIN + c * size
+        y1 = MARGIN + r * size
+        x2 = x1 + size
+        y2 = y1 + size
         return x1, y1, x2, y2
 
     def cell_center(self, r:int, c:int):
@@ -505,9 +613,11 @@ class SantoriniTk(tk.Tk):
                 if img is not None:
                     self.canvas.create_image(x1, y1, image=img, anchor="nw", tags=("tile",))
                 else:
-
-                    self.canvas.create_rectangle(x1, y1, x2, y2, fill="#ddd", outline="")
-    def draw_workers(self):
+                    self.canvas.create_rectangle(
+                        x1, y1, x2, y2,
+                        fill="#313244",   # tile base color
+                        outline="#45475a"
+                    )
         for w in self.board.workers:
             r, c = w.pos
             cx,cy = self.cell_center(r,c)
@@ -519,9 +629,18 @@ class SantoriniTk(tk.Tk):
                 else:
                 #  text if no PNG exists
                     color = PLAYER_COLORS.get(w.owner, "black")
-                    self.canvas.create_text(cx, cy, text=w.id, font=("Arial", 11, "bold"), fill=color)
+                    self.canvas.create_text(cx, cy, text=w.id, font=("Segoe", 11, "bold"), fill=color)
 
     def _draw_cells(self):
+
+        self.canvas.create_text(
+                    (x1+x2)//2,
+                    y1 + 14,
+                    text=str(cell.height),
+                    font=("Segoe UI", 11, "bold"),
+                    fill="#f5e0dc"      # soft light color
+                )
+       
         """Enhanced cell drawing with player colors"""
         for r in range(BOARD_SIZE):
             for c in range(BOARD_SIZE):
@@ -530,8 +649,9 @@ class SantoriniTk(tk.Tk):
 
                 # Draw height
                 self.canvas.create_text((x1+x2)//2, y1 + 14, text=str(cell.height),
-                                      font=("Arial", 12, "bold"))
+                                      font=("Segoe", 12, "bold"))
 
+    
                 # Draw worker with player color
                 if cell.worker_id is not None:
                     worker = next((w for w in self.board.workers if w.id == cell.worker_id), None)
@@ -539,7 +659,7 @@ class SantoriniTk(tk.Tk):
                         color = PLAYER_COLORS.get(worker.owner, "black")
                         self.canvas.create_text((x1+x2)//2, (y1+y2)//2,
                                               text=cell.worker_id,
-                                              font=("Arial", 10, "bold"),
+                                              font=("Segoe", 10, "bold"),
                                               fill=color)
 
     def draw(self, banner: str | None = None):
@@ -547,7 +667,7 @@ class SantoriniTk(tk.Tk):
         self.canvas.delete("all")
         self._draw_grid()
         self.draw_tiles()
-        self.draw_workers()
+        #self.draw_workers()
 
         if self.selected_worker and self.src:
             self.highlight_selected()
@@ -571,15 +691,15 @@ class SantoriniTk(tk.Tk):
             self.status.config(text=f"{who} ({player_type}): {phase_text}")
 
     def click_to_rc(self, event): #convert click to row/col
-
+        size = self.cell_size
         x= event.x -MARGIN
         y= event.y -MARGIN
 
         if x<0 or y< 0 :
             return None
 
-        c = x // CELL
-        r = y // CELL
+        c = x // size
+        r = y // size
         if 0 <=r < BOARD_SIZE and 0 <= c < BOARD_SIZE:
             return int(r), int(c)
         return None #none if outside board
@@ -592,31 +712,53 @@ class SantoriniTk(tk.Tk):
 # Draw help
 
     def _rc_to_xy(self, r:int, c:int):
-        x1 = MARGIN + c * CELL
-        y1 = MARGIN + r * CELL
-        x2 = x1+ CELL
-        y2 = y1+ CELL
+        size = self.cell_size
+        x1 = MARGIN + c * size
+        y1 = MARGIN + r * size
+        x2 = x1+ size
+        y2 = y1+ size
         return (x1, y1, x2, y2)
 
     def _draw_grid(self):
+        size = self.cell_size
+        grid_color = "#3b3f51"      # subtle grid lines
+        header_color = "#cdd6f4"    # light text for headers
+
         for i in range(BOARD_SIZE+1):
-            x = MARGIN + i * CELL
-            y = MARGIN + i * CELL
+            x = MARGIN + i * size
+            y = MARGIN + i * size
 
-            #vertical
-            self.canvas.create_line(x, MARGIN, x, MARGIN + CELL * BOARD_SIZE)
+            # vertical
+            self.canvas.create_line(
+                x, MARGIN, x, MARGIN + size * BOARD_SIZE,
+                fill=grid_color
+            )
 
-            #horizontal
-            self.canvas.create_line( MARGIN, y, MARGIN + CELL * BOARD_SIZE, y)
+            # horizontal
+            self.canvas.create_line(
+                MARGIN, y, MARGIN + size * BOARD_SIZE, y,
+                fill=grid_color
+            )
 
-        # headers
+        # headers (A–E, 1–5)
         for c in range(BOARD_SIZE):
-            x = MARGIN + c * CELL + CELL // 2
-            self.canvas.create_text(x, MARGIN // 2, text = chr(ord('A') + c))
+            x = MARGIN + c * size + size // 2
+            self.canvas.create_text(
+                x, MARGIN // 2,
+                text=chr(ord('A') + c),
+                fill=header_color,
+                font=SMALL_FONT
+            )
 
         for r in range(BOARD_SIZE):
-            y = MARGIN + r * CELL + CELL // 2
-            self.canvas.create_text(MARGIN // 2, y, text = str(r+1))
+            y = MARGIN + r * size + size // 2
+            self.canvas.create_text(
+                MARGIN // 2, y,
+                text=str(r+1),
+                fill=header_color,
+                font=SMALL_FONT
+            )
+
 
     def end_game(self, winner: str):
         """Handle game end - save notation and display winner"""
@@ -656,6 +798,7 @@ class SantoriniTk(tk.Tk):
             worker = next((w for w in self.board.workers if w.id == wid), None)
             if worker:
                 self.notation.record_setup(worker)
+                self.update_notation()
 
             self.draw(f"{player}: placed {wid} at {coords_to_notation(rc)}")
 
@@ -724,6 +867,7 @@ class SantoriniTk(tk.Tk):
                     self.phase = "game_over"
                     # Record final turn and save notation
                     self.notation.record_turn(src, dst)
+                    self.update_notation()
                     self.end_game(player)
                     return
 
@@ -747,6 +891,7 @@ class SantoriniTk(tk.Tk):
 
                 # Record turn in notation
                 self.notation.record_turn(self.src, self.selected_worker.pos, rc)
+                self.update_notation()
 
                 print(f"[DEBUG] {player} built at {rc}, about to end turn")
                 self.controller.end_turn()
@@ -822,8 +967,11 @@ class SantoriniTk(tk.Tk):
         if won:
             # Winning move - no build recorded
             self.notation.record_turn(old_pos, move)
+            
         else:
             self.notation.record_turn(old_pos, move, build)
+
+        self.update_notation()
 
         print(f"[DEBUG] AI {worker.owner} built at {build}, about to end turn")
         self.controller.end_turn()
@@ -856,3 +1004,14 @@ class SantoriniTk(tk.Tk):
             self.src = None
             self.legal = []
             self.draw("Selection cleared")
+
+    def on_canvas_resize(self, event):
+        # compute new cell size based on available space
+        new_size = min(
+            max((event.width - 2 * MARGIN) // BOARD_SIZE, 10),
+            max((event.height - 2 * MARGIN) // BOARD_SIZE, 10),
+        )
+        if new_size != self.cell_size:
+            self.cell_size = new_size
+            self.load_images()   # reload sprites to new size
+            self.draw()
