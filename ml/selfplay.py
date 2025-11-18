@@ -72,13 +72,15 @@ def selfplay(controller_class, game_config, model_path, dataset_path, num_games=
 
             # Start-of-turn elimination
             if not rules.all_legal_actions(board, board.current_player):
+                # debug: show index before elimination
+                print(f"[DBG] About to eliminate. current_player_index={board.current_player_index}, "
+                      f"len(active)={len(board.active_players)}, active_players={board.active_players}")
                 print(f"[ELIMINATION] {board.current_player} has no actions at turn start")
                 board.eliminate_player(board.current_player)
                 if len(board.active_players) <= 1:
                     winner = board.active_players[0] if board.active_players else None
                     game_over = True
                     break
-                board.next_turn()
                 turn_count += 1
                 continue
 
@@ -87,9 +89,6 @@ def selfplay(controller_class, game_config, model_path, dataset_path, num_games=
 
             if pid not in board.active_players:
                 board.next_turn()
-                # Normalize current_player_index if board.next_turn assigned a player_id string
-                if isinstance(board.current_player_index, str):
-                    board.current_player_index = game_config.get_player_index(board.current_player_index)
                 continue
 
             actions = all_legal_actions(board, pid)
@@ -99,10 +98,6 @@ def selfplay(controller_class, game_config, model_path, dataset_path, num_games=
                     winner = board.active_players[0]
                     game_over = True
                     break
-                board.next_turn()
-                # Normalize current_player_index if board.next_turn assigned a player_id string
-                if isinstance(board.current_player_index, str):
-                    board.current_player_index = game_config.get_player_index(board.current_player_index)
                 continue
 
             ml_score, action = agent.decide_action(board)
@@ -111,9 +106,7 @@ def selfplay(controller_class, game_config, model_path, dataset_path, num_games=
             if action is None:
                 print(f"[DEBUG] {pid} returned no action.")
                 board.next_turn()
-                # Normalize current_player_index if board.next_turn assigned a player_id string
-                if isinstance(board.current_player_index, str):
-                    board.current_player_index = game_config.get_player_index(board.current_player_index)
+
                 turn_count += 1
                 continue
 
@@ -121,19 +114,14 @@ def selfplay(controller_class, game_config, model_path, dataset_path, num_games=
 
             # Pre-move legality checks
             if not rules.can_move(board, worker.pos, move):
-                print(f"❌ Illegal move proposed by {pid}: {worker.pos} -> {move}")
+                print(f"Illegal move proposed by {pid}: {worker.pos} -> {move}")
                 board.next_turn()
-                # Normalize current_player_index if board.next_turn assigned a player_id string
-                if isinstance(board.current_player_index, str):
-                    board.current_player_index = game_config.get_player_index(board.current_player_index)
                 turn_count += 1
                 continue
             if not rules.can_build(board, move, build):
-                print(f"❌ Illegal build proposed by {pid} at {build}")
+                print(f"Illegal build proposed by {pid} at {build}")
                 board.next_turn()
-                # Normalize current_player_index if board.next_turn assigned a player_id string
-                if isinstance(board.current_player_index, str):
-                    board.current_player_index = game_config.get_player_index(board.current_player_index)
+
                 turn_count += 1
                 continue
 
@@ -141,11 +129,9 @@ def selfplay(controller_class, game_config, model_path, dataset_path, num_games=
 
             ok_move, won = controller.apply_move(worker, move)
             if not ok_move:
-                print(f"❌ Controller rejected move {move} by {pid}")
+                print(f"Controller rejected move {move} by {pid}")
                 board.next_turn()
-                # Normalize current_player_index if board.next_turn assigned a player_id string
-                if isinstance(board.current_player_index, str):
-                    board.current_player_index = game_config.get_player_index(board.current_player_index)
+
                 turn_count += 1
                 continue
 
@@ -154,12 +140,12 @@ def selfplay(controller_class, game_config, model_path, dataset_path, num_games=
             # Grid consistency checks
             cell = board.get_cell(worker.pos)
             if cell.worker_id != worker.id:
-                print(f"❌ GRID MISMATCH: worker {worker.id} at {worker.pos} but cell has {cell.worker_id}")
+                print(f"GRID MISMATCH: worker {worker.id} at {worker.pos} but cell has {cell.worker_id}")
 
             seen = {}
             for ww in board.workers:
                 if ww.pos in seen:
-                    print(f"❌ DUPLICATE POSITION: {seen[ww.pos]} and {ww.id} on {ww.pos}")
+                    print(f"DUPLICATE POSITION: {seen[ww.pos]} and {ww.id} on {ww.pos}")
                 seen[ww.pos] = ww.id
 
             heuristic_score = evaluate(board, pid)
@@ -182,9 +168,6 @@ def selfplay(controller_class, game_config, model_path, dataset_path, num_games=
                 break
 
             board.next_turn()
-            # Normalize current_player_index if board.next_turn assigned a player_id string
-            if isinstance(board.current_player_index, str):
-                board.current_player_index = game_config.get_player_index(board.current_player_index)
 
             if rules.game_over(board):
                 winner = board.current_player
