@@ -282,7 +282,7 @@ class SantoriniTk(tk.Tk):
         
         # Main frame to hold board and dialogue side by side
         main_frame = tk.Frame(self)
-        main_frame.pack(fill="both", expand=True)
+        main_frame.pack(fill="both", expand=False, padx=10, pady=10)
 
         # Left: Game board (canvas)
         self.canvas = tk.Canvas(
@@ -297,6 +297,19 @@ class SantoriniTk(tk.Tk):
         self.canvas.bind("<Configure>", self.on_canvas_resize)
         self.load_images()
 
+        # Small worker icons for player indicators (UI size)
+        self.ui_workers = {}
+        base = Path(__file__).resolve().parent / "assets" / "workers"
+
+        for pid in ["P1", "P2", "P3"]:
+            img_path = base / f"{pid}.png"
+            if img_path.exists():
+                img = Image.open(img_path).convert("RGBA").resize((100, 100), Image.LANCZOS)
+                self.ui_workers[pid] = ImageTk.PhotoImage(img)
+            else:
+                self.ui_workers[pid] = None
+
+
         # Dialogue and info on the right
         right_frame = tk.Frame(main_frame)
         right_frame.pack(side="left", fill="y", padx=10, pady=0)
@@ -308,7 +321,7 @@ class SantoriniTk(tk.Tk):
         self.dialogue_label = tk.Label(
             right_frame,
             text="",
-            font=("Segoe", 13),
+            font=("Segoe", 10),
             wraplength=220,
             justify="left",
             anchor="nw"
@@ -545,14 +558,15 @@ class SantoriniTk(tk.Tk):
             frame.pack(side="left", padx=5, pady=2)
 
         # Color dot (optional)
-            color_label = tk.Label(
+            icon = self.ui_workers.get(player_id)
+
+            icon_label = tk.Label(
                 frame,
-                text="●",
-                fg="#3b3f51",
-                bg=color,
-                font=("Segoe UI", 16, "bold")
-         )
-            color_label.pack(side="left", padx=(4, 2))
+                image=icon,
+                bg=color
+            )
+            icon_label.image = icon  # prevent garbage collection
+            icon_label.pack(side="left", padx=(4, 2))
 
         # Player info text
             player_type = self.controller.players[player_id]["type"]
@@ -580,12 +594,12 @@ class SantoriniTk(tk.Tk):
             self.notation_view.insert("", "end", values=(f"{idx}. {move_text}",))
         self.notation_view.yview_moveto(1.0)
 
-        
+
     def update_current_player_display(self):
         """Highlight current player in the indicator"""
         for player_id, frame in self.player_labels.items():
             if player_id == self.board.current_player:
-                frame.config(bg="yellow", relief="raised", borderwidth=3)
+                frame.config(bg="#529A78", relief="raised", borderwidth=0)
             else:
                 frame.config(bg="SystemButtonFace", relief="raised", borderwidth=1)
 
