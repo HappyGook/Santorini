@@ -4,6 +4,7 @@ from typing import Dict, Any
 import os
 
 from ai.heuristics import evaluate
+from game.rules import all_legal_actions
 from ml.dataset import SantoDataset
 from game.board import Board
 from game.config import GameConfig
@@ -300,6 +301,34 @@ class SantoriniTk(tk.Tk):
         except Exception as e:
             print(f"[DATASET] Failed to record move: {e}")
     # ---------------------------------------------------------------------------
+
+    def check_game_state(self):
+        """Elimination + win logic."""
+        pid = self.board.current_player
+
+        # Start-of-turn elimination
+        if not all_legal_actions(self.board, pid):
+            print(f"[ELIMINATION] {pid} has no actions")
+
+            self.board.eliminate_player(pid)
+
+            if len(self.board.active_players) <= 1:
+                winner = self.board.active_players[0]
+                self.end_game(winner)
+                return True
+
+            self.draw()
+            return False
+
+        for r in range(5):
+            for c in range(5):
+                cell = self.board.grid[(r, c)]
+                if cell.height == 3 and cell.worker_id is not None:
+                    winner = self.board.get_worker(cell.worker_id).owner
+                    self.end_game(winner)
+                    return True
+
+        return False
 
     def load_images(self):
         #Load & cache all tiles/workers, resized to CELL size
@@ -622,6 +651,8 @@ class SantoriniTk(tk.Tk):
 
         #1select movable worker
         if self.phase == "select_Worker":
+            if self.check_game_state():
+                return
 
             picked = None
             for w in self.board.workers:
@@ -725,6 +756,9 @@ class SantoriniTk(tk.Tk):
 
     def ai_pump(self):
         if self.game_over:
+            return
+        # Pre-turn check
+        if self.check_game_state():
             return
 
         player = self.board.current_player

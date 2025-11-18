@@ -2,7 +2,7 @@
 This is a CNN for Santorini, using value-only branch for move eval
 
 Design:
-- Input: (batch, 9, 5, 5) - board state (6 channels) + action encoding (3 channels)
+- Input: (batch, 14, 5, 5) - board state (11 channels) + action encoding (3 channels)
 - Shared conv trunk -> produces feature maps (batch, filters, 5, 5)
 - Value head: conv reduction + linear layers -> scalar in (-1, 1) using tanh
 """
@@ -14,7 +14,7 @@ import torch.nn.functional as functional
 
 
 class ConvBlock(nn.Module):
-    """Basic conv -> BN -> ReLU block, keeps spatial resolution with padding=1"""
+    """Basic conv -> BN -> ReLU block, keeps cnn from making the board smaller"""
 
     def __init__(self, in_ch: int, out_ch: int) -> None:
         super().__init__()
@@ -33,7 +33,7 @@ class SantoNeuroNet(nn.Module):
     CNN
 
     Args:
-        in_channels: input channels--default 9 (more in encode.py)
+        in_channels: input channels - 14 (more in encode.py)
         filters: number of feature maps in the trunk
         n_conv_blocks: how many conv blocks in the trunk, affects receptive field
         value_hidden: hidden units in the value head before final scalar
@@ -87,9 +87,9 @@ class SantoNeuroNet(nn.Module):
         Forward pass.
 
         Args:
-            x: (batch, 9, 5, 5) float tensor containing:
-               - Channels 0-5: board state (heights 1-3, dome, my workers, opp workers)
-               - Channels 6-8: action encoding (worker pos, move pos, build pos)
+            x: (batch, 14, 5, 5) float tensor containing:
+               - Channels 0-10: board state (heights 1-3, dome, workers of each player, active player)
+               - Channels 11-14: action encoding (worker pos, move pos, build pos)
 
         Returns:
             value: (batch,) - scalar value in (-1, 1)
@@ -136,7 +136,7 @@ class SantoNeuroNet(nn.Module):
                 Evaluate a batch of actions for the same board state.
 
                 Args:
-                    board_state: (6, 5, 5) single board state
+                    board_state: (11, 5, 5) single board state
                     action_encodings: (num_actions, 3, 5, 5) action encodings
 
                 Returns:
@@ -166,7 +166,7 @@ def value_loss(
     Args:
         value_pred: (batch,) predicted scalars (already tanh in [-1,1])
         value_targets: (batch,) target scalars in [-1,1]
-        Supposed to be +1 for good moves, -1 for bad ones, 0 for meh
+        Supposed to be positive for good moves, negative for bad ones, 0 for meh
 
     Returns:
         Dict with loss and mean absolute error
@@ -175,8 +175,7 @@ def value_loss(
     mae = functional.l1_loss(value_pred, value_targets)
     return {"loss": loss, "mae": mae.detach()}
 
-# Debugging example func
-# Example usage:
+# Empty model creation
 if __name__ == "__main__":
     # Create model
     model = SantoNeuroNet(

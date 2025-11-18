@@ -17,8 +17,7 @@ class Board:
 
     @property
     def current_player(self) -> str:
-        """Get current player ID string for backward compatibility"""
-        return self.game_config.get_player_id(self.current_player_index)
+        return self.active_players[self.current_player_index]
 
     def next_turn(self):
         if not self.active_players:
@@ -36,7 +35,7 @@ class Board:
 
         # Move to next active player
         idx = (idx + 1) % len(self.active_players)
-        self.current_player_index = self.game_config.get_player_index(self.active_players[idx])
+        self.current_player_index = idx
 
     def in_bounds(self, pos: Coord) -> bool:
         """Return True if pos on the board."""
@@ -93,6 +92,6 @@ class Board:
             if self.current_player == pid:
                 if self.active_players:
                     next_idx = removed_idx % len(self.active_players)
-                    self.current_player_index = self.game_config.get_player_index(self.active_players[next_idx])
+                    self.current_player_index = next_idx
                 else:
                     self.current_player_index = 0
