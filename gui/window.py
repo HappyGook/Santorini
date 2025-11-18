@@ -63,9 +63,12 @@ def place_workers_for_setup(board: Board, game_config: GameConfig) -> None:
 def choose_mode_ui() -> Dict[str, Any]:
     """Enhanced mode selection with 2-player and 3-player options"""
     root = tk.Tk()
-    root.title("Choose Game Mode")
+    root.configure(bg="#1e1e2e")
+    root.title("Santorini")
     root.geometry("1200x1000")
     root.resizable(True, True)
+
+
     #azure
     here = Path(__file__).resolve().parent
     azure_dir = here / "themes" / "Azure-ttk-theme-main"
@@ -73,29 +76,131 @@ def choose_mode_ui() -> Dict[str, Any]:
     root.tk.call("source", str(azure_tcl))
     root.tk.call("set_theme", "dark")   # or "light"
 
-    # Number of players selection
-    ttk.Label(root, text="Number of Players:", padding=10, font=("Segoe", 12, "bold")).pack(anchor="w")
+    style = ttk.Style(root)
+    
+
+    # Global background override for ttk frames, labels, etc.
+    style.configure(".", background="#1e1e2e")
+
+    # LabelFrames too
+    style.configure("TLabelframe", background="#1e1e2e")
+    style.configure("TLabelframe.Label", background="#1e1e2e")
+
+    # Radiobutton toggle buttons (Azure style)
+    style.configure("Toggle.TButton", background="#1e1e2e")
+    style.map("Toggle.TButton", background=[("selected", "#1f6feb")])
+
+    
+
+    style = ttk.Style(root)
+    style.configure(
+        "StartGame.TButton",
+        font=("Segoe UI", 20, "bold"),
+        padding=(24, 10)),
+        
+    
+
 
     players_var = tk.StringVar(value="2")
-    player_frame = ttk.Frame(root)
-    player_frame.pack(anchor="w", padx=20)
+    mode_var = tk.StringVar(value="pvai")
 
-    ttk.Radiobutton(player_frame, text="2 Players", variable=players_var, value="2", padding=5).pack(anchor="w")
-    ttk.Radiobutton(player_frame, text="3 Players", variable=players_var, value="3", padding=5).pack(anchor="w")
+
+    container = ttk.Frame(root)
+    container.pack(anchor="n", pady=20, fill="x")
+
+
+    # Number of players selection
+    ttk.Label(
+        container,
+        text="SANTORINO",
+        font=("Segoe UI", 35, "bold")
+    ).pack(pady=(30, 40))
+
+    ttk.Label(
+        container,
+        text="Number of Players:",
+        font=("Segoe UI", 20, "bold")
+    ).pack(anchor="center")
+
+    
+    players_var = tk.StringVar(value="2")
+    player_frame = ttk.Frame(container)
+    player_frame.pack(anchor="center", pady=(10, 25))
+
+
+    ttk.Radiobutton(
+        player_frame,
+        text="2 Players",
+        variable=players_var,
+        value="2",
+        style="Toggle.TButton",
+        padding=10,
+        width=12 
+    ).pack(side="left", padx=10)
+
+    ttk.Radiobutton(
+        player_frame,
+        text="3 Players",
+        variable=players_var,
+        value="3",
+        style="Toggle.TButton",
+        padding=10,
+        width=12 
+    ).pack(side="left", padx=10)
+
 
     # Game mode selection
-    ttk.Label(root, text="Game Mode:", padding=10, font=("Segoe", 12, "bold")).pack(anchor="w")
+   
+    ttk.Label(
+        container,
+        text="Game Mode:",
+        font=("Segoe UI", 12, "bold")
+    ).pack(anchor="center")
 
+    
     mode_var = tk.StringVar(value="pvai")
-    mode_frame = ttk.Frame(root)
-    mode_frame.pack(anchor="w", padx=20)
+    mode_frame = ttk.Frame(container)
+    mode_frame.pack(anchor="center", pady=(10, 25))
 
-    ttk.Radiobutton(mode_frame, text="Human vs Human", variable=mode_var, value="pvp", padding=5).pack(anchor="w")
-    ttk.Radiobutton(mode_frame, text="Human vs AI", variable=mode_var, value="pvai", padding=5).pack(anchor="w")
-    ttk.Radiobutton(mode_frame, text="AI vs AI", variable=mode_var, value="aivai", padding=5).pack(anchor="w")
+    ttk.Radiobutton(
+        mode_frame,
+        text="Human vs Human",
+        variable=mode_var,
+        value="pvp",
+        style="Toggle.TButton",
+        padding=10,
+        width=18
+    ).pack(side="left", padx=8)
 
-    ai_box = ttk.LabelFrame(root, text="AI configuration", padding=8)
-    ai_box.pack(fill="x", padx=12, pady=(8, 0))
+    ttk.Radiobutton(
+        mode_frame,
+        text="Human vs AI",
+        variable=mode_var,
+        value="pvai",
+        style="Toggle.TButton",
+        padding=10,
+        width=18
+    ).pack(side="left", padx=8)
+
+    ttk.Radiobutton(
+        mode_frame,
+        text="AI vs AI",
+        variable=mode_var,
+        value="aivai",
+        style="Toggle.TButton",
+        padding=10,
+        width=18
+    ).pack(side="left", padx=8)
+
+    ttk.Label(
+        container,
+        text="AI Configuration",
+        font=("Segoe UI", 12, "bold")
+    ).pack(anchor="center", pady=(20, 5))
+        
+    ai_box = ttk.Frame(container)
+    ai_box.pack(anchor="center", pady=(10, 10))
+
     
     def make_ai_vars():
         return {
@@ -113,24 +218,38 @@ def choose_mode_ui() -> Dict[str, Any]:
     rows: Dict[str, Dict[str, Any]] = {}
     def add_ai_row(pid: str, row_index: int):
         r: Dict[str, Any] = {}
-        r["frame"] = ttk.Frame(ai_box)
-        r["frame"].grid(row=row_index, column=0, sticky="ew", pady=2)
+        frame = ttk.Frame(ai_box)
+        frame.grid(row=row_index, column=0, pady=4)
+        r["frame"] = frame
 
-        ttk.Label(r["frame"], text=f"{pid}", width=4).grid(row=0, column=0, padx=(0, 8))
-        ttk.Label(r["frame"], text="Algo").grid(row=0, column=1, sticky="e")
+        #column 1 P1 P2 P3
+
+        ttk.Label(frame, text=pid, width=4, anchor="center").grid(row=0, column=0, padx=10)
+
+        # Column 2: Algo label
+        ttk.Label(frame, text="Algo", width=8, anchor="e").grid(row=0, column=1, padx=5)
+
+        # Column 3: Algo combobox
         r["algo"] = ttk.Combobox(
-            r["frame"], width=10, state="readonly",
-            values=["minimax", "maxn", "ml", "mcts","rust_mcts","mcts_NN"], textvariable=ai_vars[pid]["algo"]
+            frame, width=12, state="readonly",
+            values=["minimax", "maxn", "ml", "mcts", "rust_mcts", "mcts_NN"],
+            textvariable=ai_vars[pid]["algo"]
         )
-        r["algo"].grid(row=0, column=2, padx=4)
+        r["algo"].grid(row=0, column=2, padx=5)
 
-        ttk.Label(r["frame"], text="Depth").grid(row=0, column=3, sticky="e")
-        r["depth"] = ttk.Spinbox(r["frame"], from_=1, to=8, width=5, textvariable=ai_vars[pid]["depth"])
-        r["depth"].grid(row=0, column=4, padx=4)
+        # Column 4: Depth label
+        ttk.Label(frame, text="Depth", width=6, anchor="e").grid(row=0, column=3, padx=5)
 
-        ttk.Label(r["frame"], text="Iters (MCTS)").grid(row=0, column=5, sticky="e")
-        r["iters"] = ttk.Spinbox(r["frame"], from_=50, to=2000, increment=50, width=7, textvariable=ai_vars[pid]["iters"])
-        r["iters"].grid(row=0, column=6, padx=4)
+        # Column 5: Depth spinbox
+        r["depth"] = ttk.Spinbox(frame, from_=1, to=8, width=5, textvariable=ai_vars[pid]["depth"])
+        r["depth"].grid(row=0, column=4, padx=5)
+
+        # Column 6: Iters label
+        ttk.Label(frame, text="Iters (MCTS)", width=12, anchor="e").grid(row=0, column=5, padx=5)
+
+        # Column 7: Iters spinbox
+        r["iters"] = ttk.Spinbox(frame, from_=50, to=2000, increment=50, width=7, textvariable=ai_vars[pid]["iters"])
+        r["iters"].grid(row=0, column=6, padx=5)
 
         rows[pid] = r
 
@@ -205,7 +324,13 @@ def choose_mode_ui() -> Dict[str, Any]:
         selected["val"] = {"num_players": num_players, "mode": mode, "ai": ai}
         root.destroy()
 
-    ttk.Button(root, text="Start Game", command=start, padding=10).pack(pady=20)
+    start_btn = ttk.Button(
+        container,
+        text="Start Game",
+        command=start,
+        style="StartGame.TButton"
+    )
+    start_btn.pack(pady=40)
 
     root.mainloop()
     return selected["val"]
@@ -232,6 +357,7 @@ def build_players(mode_sel, game_config):
 class SantoriniTk(tk.Tk):
     def __init__(self, board: Board, controller: GameController, game_config: GameConfig):
         super().__init__()
+        
 #azure theme
         here = Path(__file__).resolve().parent
         azure_dir = here / "themes" / "Azure-ttk-theme-main"
