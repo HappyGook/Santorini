@@ -10,12 +10,9 @@ def ml_inference(board_state, player_index, model, stats):
 
     player_id = board_state.game_config.get_player_id(player_index)
     legal_actions = all_legal_actions(board_state, player_id)
-    logging.debug(f"[ML-Inference] Found {len(legal_actions)} legal actions for player {player_index}")
+    #logging.log(f"[ML-Inference] Found {len(legal_actions)} legal actions for player {player_index}")
     if not legal_actions:
-        logging.debug(f"[ML-NO] No legal actions for player {player_index}")
         return None, None
-
-    logging.debug(f"[ML-Inference] Example action: {legal_actions[0] if legal_actions else 'None'}")
 
     board_tensor = torch.from_numpy(encode_board(board_state, active_player_id=player_id))
     actions_tensor = torch.stack([
@@ -23,11 +20,11 @@ def ml_inference(board_state, player_index, model, stats):
     ])
 
     values = model.evaluate_actions(board_tensor, actions_tensor)
-    logging.debug(f"[ML-Inference] Evaluated {len(values)} actions: values={values.tolist()}")
+    #logging.log(f"[ML-Inference] Evaluated {len(values)} actions: values={values.tolist()}")
 
     best_index = torch.argmax(values).item()
     action = legal_actions[best_index]
     eval_value = values[best_index].item()
 
-    logging.debug(f"[ML-Inference] Selected action index={best_index}, action={action}, value={eval_value:.4f}")
+    #logging.log(f"[ML-Inference] Selected action index={best_index}, action={action}, value={eval_value:.4f}")
     return eval_value, action

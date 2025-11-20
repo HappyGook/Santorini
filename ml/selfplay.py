@@ -64,17 +64,10 @@ def selfplay(controller_class, game_config, model_path, dataset_path, num_games=
         while not game_over and turn_count < 200:
             print("\n" + "=" * 60)
             print(f"[TURN {turn_count} BEGIN] Current player: {board.current_player}")
-            print("Remaining players:", board.remaining_players)
-            print("[WORKERS POSITIONS]")
-            for w in board.workers:
-                print(f"  {w.id}({w.owner}) at {w.pos} h={board.get_cell(w.pos).height}")
-            print("=" * 60)
 
             # Start-of-turn elimination
             if not rules.all_legal_actions(board, board.current_player):
                 # debug: show index before elimination
-                print(f"[DBG] About to eliminate. current_player_index={board.current_player_index}, "
-                      f"len(active)={len(board.active_players)}, active_players={board.active_players}")
                 print(f"[ELIMINATION] {board.current_player} has no actions at turn start")
                 board.eliminate_player(board.current_player)
                 if len(board.active_players) <= 1:
@@ -149,7 +142,8 @@ def selfplay(controller_class, game_config, model_path, dataset_path, num_games=
                 seen[ww.pos] = ww.id
 
             heuristic_score = evaluate(board, pid)
-            print(f"[SELFPLAY DEBUG] Score to be saved: {heuristic_score}")
+            delta = abs(ml_score - heuristic_score/1000)
+            print(f"[SELFPLAY DEBUG] Model scored the move as {ml_score}, heuristic scored as {heuristic_score/1000}, delta={delta:.4f}")
 
             dataset.add_sample(board, pid, (worker, move, build), float(heuristic_score))
             game_records.append((board.clone(), action, pid, float(heuristic_score)))
