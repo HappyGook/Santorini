@@ -5,6 +5,7 @@ pub mod mcts_tree;
 use mcts_tree::{Node, Tree};
 use std::collections::HashMap;
 
+pub mod board;
 
 // cd Santorini/rust
 // cargo build --release

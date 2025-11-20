@@ -3,7 +3,7 @@
 - Clean up the Code (Redundant funcs, Repeating funcs, etc.)
 
 ### Better UI
-- User-friendly windows
+- User-friendly windows---------1/2 done
 - Higher Resolution  ------------DONE
 - Logbook?-----------------------DONE
 - Evaluation in UI with explanation (good, because criteria)
