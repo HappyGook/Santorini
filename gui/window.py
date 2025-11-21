@@ -468,13 +468,19 @@ class SantoriniTk(tk.Tk):
         self.create_player_indicators()
         
         # AI loading UI
-        self.ai_loading_frame = tk.Frame(right_frame)
+        self.ai_loading_frame = tk.Frame(info_frame, height=70)
         self.ai_loading_frame.pack(fill="x", pady=(10, 10))
-        self.ai_loading_label = tk.Label(self.ai_loading_frame, text="", font=("Segoe UI", 10))
+        self.ai_loading_frame.pack_propagate(False)
+
+        self.ai_loading_label = tk.Label(self.ai_loading_frame, text="", font=("Segoe UI", 12, "bold"))
         self.ai_loading_label.pack(anchor="w")
-        self.ai_loading_bar = ttk.Progressbar(self.ai_loading_frame, mode="determinate", length=220)
-        self.ai_loading_bar.pack(anchor="w", pady=(4, 0))
-        self.ai_loading_frame.pack_forget()
+
+        self.ai_loading_spinner = tk.Label(self.ai_loading_frame, text="⠋", font=("Segoe UI", 18))
+        self.ai_loading_spinner.pack(anchor="w", pady=(2, 0))
+
+        # Hide with frame height
+        self.ai_loading_label.pack_forget()
+        self.ai_loading_spinner.pack_forget()
 
 
         #notation log
@@ -501,7 +507,7 @@ class SantoriniTk(tk.Tk):
         self.notation_view.configure(yscroll=scroll.set)
         scroll.pack(side="right", fill="y")
 
-    
+
 
 
         #ui for interaction
@@ -719,19 +725,25 @@ class SantoriniTk(tk.Tk):
 
     def show_ai_loading(self, player_name: str):
         self.ai_loading_label.config(text=f"{player_name} is deciding on a move…")
-        self.ai_loading_bar["value"] = 0
-        self.ai_loading_frame.pack(fill="x")
-        steps = 100
-        interval = 15000 // steps
-        def step(i=0):
-            if i > steps:
+        self.ai_loading_label.pack(anchor="w")
+        self.ai_loading_spinner.pack(anchor="w", pady=(2, 0))
+
+        # Spinner animation
+        self._spinner_running = True
+        spinner_frames = ["⠋","⠙","⠹","⠸","⠼","⠴","⠦","⠧","⠇","⠏"]
+
+        def spin(i=0):
+            if not self._spinner_running:
                 return
-            self.ai_loading_bar["value"] = i
-            self.after(interval, lambda: step(i + 1))
-        step()
+            self.ai_loading_spinner.config(text=spinner_frames[i % len(spinner_frames)])
+            self.after(100, lambda: spin(i+1))
+
+        spin()
 
     def hide_ai_loading(self):
-        self.ai_loading_frame.pack_forget()
+        self._spinner_running = False
+        self.ai_loading_label.pack_forget()
+        self.ai_loading_spinner.pack_forget()
 
 
     def update_notation(self):

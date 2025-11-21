@@ -199,7 +199,7 @@ def simulate(board, player_index, game_config, stats, ml_model=None, steps=12, e
 
     value = None
 
-    # nNN-based evaluation
+    # NN-based evaluation
     if ml_model is not None:
         value, _ = ml_inference(temp_board, player_index, ml_model, stats)
 
