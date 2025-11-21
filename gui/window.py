@@ -467,8 +467,17 @@ class SantoriniTk(tk.Tk):
 
         self.create_player_indicators()
         
+        # AI loading UI
+        self.ai_loading_frame = tk.Frame(right_frame)
+        self.ai_loading_frame.pack(fill="x", pady=(10, 10))
+        self.ai_loading_label = tk.Label(self.ai_loading_frame, text="", font=("Segoe UI", 10))
+        self.ai_loading_label.pack(anchor="w")
+        self.ai_loading_bar = ttk.Progressbar(self.ai_loading_frame, mode="determinate", length=220)
+        self.ai_loading_bar.pack(anchor="w", pady=(4, 0))
+        self.ai_loading_frame.pack_forget()
 
-        #notatoion log
+
+        #notation log
         notation_frame = ttk.LabelFrame(right_frame, text="Logs", padding=(5, 5))
         notation_frame.pack(fill="both", expand=True, pady=10)
 
@@ -707,6 +716,22 @@ class SantoriniTk(tk.Tk):
             label.pack(side="left", padx=(2, 6))
 
             self.player_labels[player_id] = frame
+
+    def show_ai_loading(self, player_name: str):
+        self.ai_loading_label.config(text=f"{player_name} is deciding on a move…")
+        self.ai_loading_bar["value"] = 0
+        self.ai_loading_frame.pack(fill="x")
+        steps = 100
+        interval = 15000 // steps
+        def step(i=0):
+            if i > steps:
+                return
+            self.ai_loading_bar["value"] = i
+            self.after(interval, lambda: step(i + 1))
+        step()
+
+    def hide_ai_loading(self):
+        self.ai_loading_frame.pack_forget()
 
 
     def update_notation(self):
@@ -1056,6 +1081,7 @@ class SantoriniTk(tk.Tk):
     def ai_pump(self):
         if self.game_over:
             return
+
         # Pre-turn check
         if self.check_game_state():
             return
@@ -1065,9 +1091,25 @@ class SantoriniTk(tk.Tk):
         if agent is None:
             return
 
+        # Loading bar
+        self.show_ai_loading(player)
+
+        # AI in thread
+        import threading
+        t = threading.Thread(target=self.run_ai, daemon=True)
+        t.start()
+
+    def run_ai(self):
+        player = self.board.current_player
+        agent = self.controller.players[player]["agent"]
         eval_value, action = agent.decide_action(self.board)
+        self.after(0, lambda: self.finish_ai_turn(player, eval_value, action, agent))
+
+    def finish_ai_turn(self, player, eval_value, action, agent):
+        self.hide_ai_loading()
+
         if action is None:
-            # no legal action — treat as stalemate 
+            # no legal action — treat as stalemate
             self.controller.end_turn()
             self.draw(f"{player}: no legal moves, skipping")
             if self.controller.is_ai_turn() and not self.game_over:
@@ -1107,7 +1149,7 @@ class SantoriniTk(tk.Tk):
         if won:
             # Winning move - no build recorded
             self.notation.record_turn(old_pos, move)
-            
+
         else:
             self.notation.record_turn(old_pos, move, build)
 
@@ -1122,7 +1164,9 @@ class SantoriniTk(tk.Tk):
             return
 
         if self.controller.is_ai_turn() and not self.game_over:
-            self.after(50, self.ai_pump) #continue ai turn after delay
+            self.after(50, self.ai_pump)  # continue ai turn after delay
+
+
 
     def any_moves_for(self,player: str) -> bool:        #legal moves for player
         for w in self.board.workers:

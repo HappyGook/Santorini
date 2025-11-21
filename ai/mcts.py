@@ -197,6 +197,8 @@ def simulate(board, player_index, game_config, stats, ml_model=None, steps=12, e
         build_block(temp_board, w, build)
         current_index = (current_index + 1) % len(game_config.player_ids)
 
+    value = None
+
     # nNN-based evaluation
     if ml_model is not None:
         value, _ = ml_inference(temp_board, player_index, ml_model, stats)

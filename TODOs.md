@@ -4,8 +4,8 @@
 
 ### Better UI
 - User-friendly windows---------1/2 done
-- Higher Resolution  ------------DONE
-- Logbook?-----------------------DONE
+- ~~Higher Resolution~~
+- ~~Logbook?~~
 - Evaluation in UI with explanation (good, because criteria)
 - Players setup for each player individually (1 ai v 2 people, who plays first, etc.)
 - Clickable on MacOS ----need to clone all the board i guess
