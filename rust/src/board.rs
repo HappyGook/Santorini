@@ -1,4 +1,7 @@
 // santorini board size
+use pyo3::prelude::*;
+use pyo3::types::PyAny;
+use pyo3::prelude::PyAnyMethods;
 
 pub const BOARD_SIZE: usize = 5;
 
@@ -289,5 +292,115 @@ impl Board{
         }
     }
     
+    // give all legal move+build (action) to given worker index
+    pub fn legal_actions_for_worker(&self, worker_index:usize) -> Vec<Action>{
+        //worjer must exist and belong to current player
+        let worker = match self.workers.get(worker_index){
+            Some(w) =>w,
+            None => return Vec::new(),
+        };
+
+        if worker.owner != self.current_player{
+            return Vec::new();
+        }
+
+        let move_targets = self.legal_moves_for_worker(worker_index);
+        let mut actions = Vec::new();
+
+        for move_to in move_targets{
+            // need to know where to build after move so clone the board the apply init and ask it
+            let mut tmp = self.clone();
+            let moved_ok = tmp.move_worker_to(worker_index, move_to);
+            if !moved_ok{
+                continue;
+            }
+            // now worker stand on tmp board on move
+
+            let build_targets = tmp.legal_builds_from(move_to);
+
+            for build_at in build_targets{
+                actions.push(Action {
+                    worker_index,
+                    move_to,
+                    build_at,
+                });
+            }
+        }
+        actions
+    }
+
+    // all legal action for current player
+
+    pub fn legal_actions_for_current_player(&self) -> Vec<Action>{
+
+        let mut all = Vec::new();
+
+        for(idx,w) in self.workers.iter().enumerate(){
+            if w.owner == self.current_player{
+                let mut acts = self.legal_actions_for_worker(idx);
+                all.append(&mut acts);
+            }
+        }
+        all
+    }
+
+    //complete action and return result board
+    pub fn apply_action(&self,action: Action) -> Board{
+
+        //copy current board
+        let mut next = self.clone();
+
+        //1 move worker
+        let moved = next.move_worker_to(action.worker_index, action.move_to);
+        if !moved{
+            return next; // just for safety:)
+        }
+
+        //2build at target pos
+        if next.can_build_from(action.move_to, action.build_at){
+            let cell = next.cell_mut(action.build_at);
+            cell.height +=1; // +1 height
+        }
+
+        next.current_player = (next.current_player +1) % next.num_players;
+
+        next
+    }
+   pub fn from_python(
+        _py: Python<'_>,
+        board_py: Bound<'_, PyAny>,  // Changed from &Bound to Bound
+        num_players: u8,
+        current_player: u8,
+    ) -> PyResult<Board> {
+        let mut b = Board::new(num_players);
+        b.current_player = current_player;
+
+        // Copy heights
+        for y in 0..BOARD_SIZE {
+            for x in 0..BOARD_SIZE {
+                let cell_py = board_py.call_method1("get_cell", ((x as i32, y as i32),))?;
+                let h: u8 = cell_py.getattr("height")?.extract()?;
+                b.cells[y][x].height = h;
+            }
+        }
+
+        // Copy workers
+        let game_config = board_py.getattr("game_config")?;
+        let workers_py = board_py.getattr("workers")?;
+
+        for item in workers_py.try_iter()? {
+            let w = item?;
+            let pos_opt: Option<(i32, i32)> = w.getattr("pos")?.extract()?;
+            if let Some((x, y)) = pos_opt {
+                let owner_obj = w.getattr("owner")?;
+                let owner_idx: u8 = game_config
+                    .call_method1("get_player_index", (owner_obj,))?
+                    .extract()?;
+                b.add_worker(owner_idx, Pos::new(x as u8, y as u8));
+            }
+        }
+
+        Ok(b)
+    }
 }
-    
+

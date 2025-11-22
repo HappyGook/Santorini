@@ -1,20 +1,19 @@
-use pyo3::wrap_pyfunction;
-use pyo3::{prelude::*, types::PyModule};
-use rand::{SeedableRng, rngs::SmallRng};
-pub mod mcts_tree;
-use mcts_tree::{Node, Tree};
-use std::collections::HashMap;
-
 pub mod board;
+pub mod heuristics;
+pub mod mcts_tree;
 
-// cd Santorini/rust
-// cargo build --release
-// maturin build --release
-// python -m pip install --force-reinstall target\wheels\rust-0.1.0-cp312-cp312-win_amd64.whl
 
-const MAX_DEPTH: usize = 8; // limit search depth for safety
+use pyo3::prelude::*;
+use pyo3::wrap_pyfunction;
+use crate::board::{Board, Action};
+use crate::heuristics::evaluate_mcts;
+use mcts_tree::{Node, Tree};
+use pyo3::types::PyTuple;
+const MAX_DEPTH: usize = 8;
 
-fn next_player(p: u8, num_players:u8) -> u8 {
+
+
+pub fn next_player(p: u8, num_players: u8) -> u8 {
     (p + 1) % num_players
 }
 
@@ -22,75 +21,81 @@ fn backpropagate(tree: &mut Tree, path: &[usize], value: f32) {
     for &idx in path {
         let node = &mut tree.nodes[idx];
         node.visits += 1;
-        node.value_sum += value; // value is from root player's perspective
+        node.value_sum += value;
     }
 }
-#[pyfunction]
 
+fn action_to_py(py: Python<'_>, act: Action) -> Py<PyAny> {
+    // (move_x, move_y)
+    let move_tuple = PyTuple::new(py, &[act.move_to.x as i32, act.move_to.y as i32])
+        .expect("failed to create move tuple");
+
+    // (build_x, build_y)
+    let build_tuple = PyTuple::new(py, &[act.build_at.x as i32, act.build_at.y as i32])
+        .expect("failed to create build tuple");
+
+    // (worker_index, (move_x, move_y), (build_x, build_y))
+    let action_tuple = PyTuple::new(
+        py,
+        &[
+            act.worker_index as i32,
+            move_tuple.into(),
+            build_tuple.into(),
+        ],
+    )
+    .expect("failed to create action tuple");
+
+    // Bound<PyTuple> -> Py<PyTuple> -> Py<PyAny>
+    let action_pytuple: Py<PyTuple> = action_tuple.into();
+    let py_action: Py<PyAny> = action_pytuple.into();
+    py_action
+}
+
+fn board_from_python(
+    py: Python<'_>,
+    board: &Py<PyAny>,
+    num_players: u8,
+    current_player: u8,
+) -> PyResult<Board> {
+    let bound = board.bind(py);
+  
+    Board::from_python(py, bound.clone(), num_players, current_player)
+}
+
+#[pyfunction]
 fn run_mcts_python_rules(
-    py: Python,
+    py: Python<'_>,
     board: Py<PyAny>,
     player_index: u8,
     iterations: u32,
     num_players: u8,
 ) -> PyResult<(f32, Py<PyAny>)> {
-    //  Import helper module via PyO3
-    let helpers = py.import("ai.rust_helpers")?;
+    // Convert root board to Rust and create tree
+    let rust_root_board = board_from_python(py, &board, num_players, player_index)?;
+    let mut tree = Tree::new(rust_root_board, player_index);
+    let root_idx: usize = 0;
 
-    //  Get references to Python functions
-    let py_list_actions = helpers.getattr("list_actions")?;
-    let py_evaluate_board = helpers.getattr("evaluate_board")?;
-    let py_apply_action = helpers.getattr("apply_action")?;
-    let py_terminal_value = helpers.getattr("terminal_value")?;
+    // Root expansion
+    let root_actions: Vec<Action> =
+        tree.nodes[root_idx].board.legal_actions_for_current_player();
 
-    // Build tree with root
-    let mut tree = Tree::new(board.clone_ref(py), player_index);
-    let root_idx = 0usize;
-
-    let mut _rng = SmallRng::seed_from_u64(12345);
-
-    let mut eval_cache: HashMap<usize, f32> = HashMap::new();
-
-    let root_board_ref = board.bind(py);
-
-// get all legal actions for root
-let root_actions: Vec<Py<PyAny>> =
-    py_list_actions
-        .call1((root_board_ref.clone(), player_index))?
-        .extract()?;
-
-// if there are moves, create children for each
-if !root_actions.is_empty() {
-    let prior = 1.0f32 / root_actions.len() as f32;
-    for act in &root_actions {
-        // apply action on a copy of the board in Python
-        let child_board: Py<PyAny> =
-            py_apply_action
-                .call1((root_board_ref.clone(), act.bind(py)))?
-                .extract()?;
-
-        // create child node
-        let mut child = Node::new(
-            child_board,
-            next_player(player_index, num_players),
-            prior,
-        );
-        child.action_from_parent = Some(act.clone_ref(py));
-
-        // attach to root
-        tree.add_child(root_idx, child);
+    if !root_actions.is_empty() {
+        let prior = 1.0f32 / root_actions.len() as f32;
+        for act in &root_actions {
+            let child_board = tree.nodes[root_idx].board.apply_action(*act);
+            let mut child = Node::new(
+                child_board,
+                next_player(player_index, num_players),
+                prior,
+            );
+            child.action_from_parent = Some(*act);
+            tree.add_child(root_idx, child);
+        }
     }
-}
-// 
 
-    for _iter in 0..iterations {
-        //Optional debug
-        // if iter % 50 == 0 {
-            
-        //     //println!("[Rust PUCT] iter {iter}/{iterations}");
-        // }
-
-        // 1) Selection: walk down the tree using PUCT
+    // MCTS iterations
+    for _ in 0..iterations {
+        // Selection
         let mut path: Vec<usize> = Vec::with_capacity(MAX_DEPTH + 1);
         let mut node_idx = root_idx;
         path.push(node_idx);
@@ -100,10 +105,10 @@ if !root_actions.is_empty() {
 
             if path.len() >= MAX_DEPTH {
                 break;
-}
+            }
             if node_idx != root_idx && node.children.is_empty() {
-            break; // leaf deeper in tree
-}
+                break;
+            }
 
             if let Some(child_idx) = tree.select_child(node_idx) {
                 node_idx = child_idx;
@@ -113,84 +118,42 @@ if !root_actions.is_empty() {
             }
         }
 
-        // 2) Leaf node
+        // Leaf node
         let leaf_idx = *path.last().unwrap();
         let leaf_player = tree.nodes[leaf_idx].player_to_move;
-        let leaf_board = tree.nodes[leaf_idx].board.clone_ref(py);
-        let leaf_board_ref = leaf_board.bind(py);
 
-        // 3) Check terminal / generate actions
+        // Actions at leaf
+        let actions: Vec<Action> =
+            tree.nodes[leaf_idx].board.legal_actions_for_current_player();
 
-        let actions: Vec<Py<PyAny>> = py_list_actions
-            .call1((leaf_board_ref.clone(), leaf_player))?
-            .extract()?;
+        // Evaluate leaf
+        let leaf_value: f32 = evaluate_mcts(&tree.nodes[leaf_idx].board, player_index);
 
-        let leaf_value: f32;
+        // Expand leaf if not terminal
+        if !actions.is_empty() && tree.nodes[leaf_idx].children.is_empty() {
+            let prior_per_action = 1.0f32 / actions.len() as f32;
 
-         let tv_opt: Option<f32> = py_terminal_value
-            .call1((leaf_board_ref.clone(), player_index))?
-            .extract()?;
-        if let Some(tv) = tv_opt {
-    // Terminal position already: win/loss from root perspective
-            leaf_value = tv;
-}       else if actions.is_empty() {
-    // Stuck but not terminal by level-3 rule: just evaluate (with cache)
-        let key = leaf_board.as_ptr() as usize;
-        if let Some(v) = eval_cache.get(&key) {
-            leaf_value = *v;
-    } else {
-        let v: f32 = py_evaluate_board
-            .call1((leaf_board_ref.clone(), player_index))?
-            .extract()?;
-        eval_cache.insert(key, v);
-        leaf_value = v;
-    }
-}       else {
-    // Evaluate & expand (with cache)
-    let key = leaf_board.as_ptr() as usize;
-    if let Some(v) = eval_cache.get(&key) {
-        leaf_value = *v;
-    } else {
-        let v: f32 = py_evaluate_board
-            .call1((leaf_board_ref.clone(), player_index))?
-            .extract()?;
-        eval_cache.insert(key, v);
-        leaf_value = v;
-    }
-
-    if tree.nodes[leaf_idx].children.is_empty() {
-        let prior_per_action = 1.0f32 / actions.len() as f32;
-        for act in &actions {
-            let child_board: Py<PyAny> = py_apply_action
-                .call1((leaf_board_ref.clone(), act.bind(py)))?
-                .extract()?;
-
-            let mut child = Node::new(
-                child_board,
-                next_player(leaf_player, num_players),   
-                prior_per_action,
-            );
-            child.action_from_parent = Some(act.clone_ref(py));
-            tree.add_child(leaf_idx, child);
-        }
-    }
-}
-        // 4) Backpropagate value up the path
-            backpropagate(&mut tree, &path, leaf_value);
+            for act in &actions {
+                let child_board = tree.nodes[leaf_idx].board.apply_action(*act);
+                let mut child = Node::new(
+                    child_board,
+                    next_player(leaf_player, num_players),
+                    prior_per_action,
+                );
+                child.action_from_parent = Some(*act);
+                tree.add_child(leaf_idx, child);
+            }
         }
 
-    // 5) Choose best child at root (highest visit count)
+        // Backpropagate
+        backpropagate(&mut tree, &path, leaf_value);
+    }
+
+    // Choose best child at root
     let root = &tree.nodes[root_idx];
     if root.children.is_empty() {
-        // No moves: evaluate root board and return "no action" (None)
-        let root_ref = board.bind(py);
-        let value: f32 = py_evaluate_board
-            .call1((root_ref, player_index))?
-            .extract()?;
-
-        // Python None as the action, like original mcts_search does (None action)
-        let none_action: Py<PyAny> = py.None().into();
-        return Ok((value, none_action));
+        let value = evaluate_mcts(&tree.nodes[root_idx].board, player_index);
+        return Ok((value, py.None()));
     }
 
     let mut best_child_idx = root.children[0];
@@ -206,17 +169,20 @@ if !root_actions.is_empty() {
 
     let best_child = &tree.nodes[best_child_idx];
     let best_value = best_child.q_value();
-    let best_action = best_child
+    let act = best_child
         .action_from_parent
-        .as_ref()
-        .unwrap()
-        .clone_ref(py);
+        .expect("best child must have an action");
 
-    Ok((best_value, best_action))
+    // Convert Rust Action -> Python tuple: (worker_index, (move_x, move_y), (build_x, build_y))
+    
+let py_action = action_to_py(py, act);
+Ok((best_value, py_action))
+    // Convert Rust Action -> Python tuple
+   
 }
 
 #[pymodule]
-fn rust(_py: Python, m: &Bound<PyModule>) -> PyResult<()> {
+fn rust(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(run_mcts_python_rules, m)?)?;
     Ok(())
 }

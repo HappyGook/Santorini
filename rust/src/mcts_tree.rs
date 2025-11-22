@@ -1,5 +1,6 @@
-use pyo3::prelude::*;
 use rand::{rngs::SmallRng, Rng}; // SeedableRng
+use crate::board::{Board, Action};
+//use crate::heuristics::evaluate_mcts;
 
 /// Exploration constant for PUCT (√2 is a common default)
 pub const C_PUCT: f32 = 1.414;
@@ -7,17 +8,17 @@ pub const C_PUCT: f32 = 1.414;
 /// A single node
 
 pub struct Node {
-    pub board: Py<PyAny>,                // current board state
+    pub board: Board,             // current board state
     pub prior: f32,                      // prior probability P(a|s)
     pub value_sum: f32,                  // sum of simulation values
     pub visits: u32,                     // N(s,a)
     pub player_to_move: u8,
-    pub action_from_parent: Option<Py<PyAny>>,
+    pub action_from_parent: Option<Action>,
     pub children: Vec<usize>,            
 }
 
 impl Node {
-    pub fn new(board: Py<PyAny>, player_to_move: u8, prior: f32) -> Self {
+    pub fn new(board: Board, player_to_move: u8, prior: f32) -> Self {
         Self {
             board,
             prior,
@@ -46,7 +47,7 @@ pub struct Tree {
 
 impl Tree {
     /// Create tree with a single root node.
-    pub fn new(root_board: Py<PyAny>, root_player: u8) -> Self {
+    pub fn new(root_board: Board, root_player: u8) -> Self {
         let root = Node::new(root_board, root_player, 1.0);
         Self { nodes: vec![root] }
     }
@@ -98,3 +99,4 @@ impl Tree {
         Some(parent.children[i])
     }
 }
+
