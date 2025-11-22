@@ -8,7 +8,8 @@
 - ~~Logbook?~~
 - Evaluation in UI with explanation (good, because criteria)
 - Players setup for each player individually (1 ai v 2 people, who plays first, etc.)
-- Clickable on MacOS ----need to clone all the board i guess
+- Clickable on MacOS ---- Problem is the macos handles clicks differently, might be unfixable :/
+- ~~Game loop (New Game start after win)~~
 - ~~Feedback whether AI is thinking at the moment with time taken to move~~
 
 
