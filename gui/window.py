@@ -482,6 +482,14 @@ class SantoriniTk(tk.Tk):
         self.ai_loading_label.pack_forget()
         self.ai_loading_spinner.pack_forget()
 
+        # New game button
+        self.new_game_button = ttk.Button(
+            info_frame,
+            text="New Game",
+            command=self.start_new_game,
+            style="StartGame.TButton"
+        )
+
 
         #notation log
         notation_frame = ttk.LabelFrame(right_frame, text="Logs", padding=(5, 5))
@@ -942,7 +950,17 @@ class SantoriniTk(tk.Tk):
         self.game_over = True
         self.notation.save()  # Save with default filename
         print(f"Game notation saved! Winner: {winner}")
-        self.draw(f"{winner} wins! Game saved.")
+        self.new_game_button.pack(pady=15)
+        self.status.config(text=f"{winner} WINS!")
+        self.draw()
+
+    def start_new_game(self):
+        """return to mode selection"""
+        self.new_game_button.pack_forget()
+
+        self._spinner_running = False
+
+        self.destroy()
 
     def on_click(self, event): #handle click
 

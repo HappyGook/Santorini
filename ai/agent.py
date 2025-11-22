@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import random
 from typing import Optional, Tuple, Literal
 from sympy.categories import Object
@@ -7,6 +8,7 @@ from sympy.categories import Object
 import ai.minimax as mm
 import ai.maxn as mx
 import ai.mcts as mc
+from game import board
 
 from game.board import BOARD_SIZE
 from ai.phrases import PHRASES_BY_PLAYER
@@ -160,26 +162,45 @@ class Agent:
 
         # ALWAYS return a (value, action) tuple
         return eval_value, action
-        
-        
 
-    def decide_setup(self, board_state):
+
+    def setup_workers(self, board_state):
         empty_cells = [
             (r, c)
             for r in range(BOARD_SIZE)
             for c in range(BOARD_SIZE)
             if board_state.grid[(r, c)].worker_id is None
         ]
-        return self.rng.choice(empty_cells) if empty_cells else None
 
-    def setup_workers(self, board):
-        empties = [
-            (r, c)
-            for r in range(BOARD_SIZE)
-            for c in range(BOARD_SIZE)
-            if board.grid[(r, c)].worker_id is None
-        ]
-        return self.rng.sample(empties, 2)
+        # worker 1 picks free-est spot
+        free_scores=[]
+        for cell in empty_cells:
+            free = 0
+            for nb_cell in board_state.neighbors(cell):
+                if not board_state.is_occupied(nb_cell):
+                    free += 1
+            free_scores.append(free)
+
+        # exponential semi-randomness
+        weights1 = [math.exp(score) for score in free_scores]
+        worker1 = random.choices(empty_cells, weights=weights1, k=1)[0]
+
+        # worker 2 tries to get the best next to worker 1
+        def distance(a,b):
+            return abs(a[0]-b[0])+abs(a[1]-b[1])
+
+        weights2 = []
+        for cell in empty_cells:
+            if cell == worker1:
+                weights2.append(0)
+            else:
+                d = distance(cell, worker1)
+                # closer is heavier
+                weights2.append(math.exp(-d))
+
+        worker2 = random.choices(empty_cells, weights=weights2, k=1)[0]
+
+        return worker1, worker2
 
     def comment_on_eval(self, eval_score: float) -> str:
         mapping = PHRASES_BY_PLAYER.get(self.player_id)
