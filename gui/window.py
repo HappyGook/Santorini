@@ -1,3 +1,4 @@
+import threading
 import tkinter as tk
 from tkinter import ttk
 from typing import Dict, Any
@@ -342,8 +343,6 @@ def build_players(mode_sel, game_config):
     mode = mode_sel["mode"]
     ai_cfg = mode_sel.get("ai", {})
 
-    players = {}
-
     for pid in ids:
         if mode == "pvp":
             players[pid] = {"type": "HUMAN"}
@@ -351,7 +350,15 @@ def build_players(mode_sel, game_config):
             players[pid] = {"type": "HUMAN"}
         else:
             cfg = ai_cfg.get(pid, {"algo": "minimax", "depth": 3, "iters": None})
-            players[pid] = {"type": "AI", "agent": Agent(pid, **cfg)}
+            # Create agent each time
+            if cfg.get("model") is not None:
+                agent_cfg = {k: v for k, v in cfg.items() if k != "model"}
+                ml_model = SantoNeuroNet()
+                ml_model.load_checkpoint("ml/learned_models/model1.pt")
+                agent_cfg["model"] = ml_model
+                players[pid] = {"type": "AI", "agent": Agent(pid, **agent_cfg)}
+            else:
+                players[pid] = {"type": "AI", "agent": Agent(pid, **cfg)}
     return players
 
 class SantoriniTk(tk.Tk):
@@ -533,6 +540,10 @@ class SantoriniTk(tk.Tk):
 
         # Start the setup phase immediately
         self.after(50, self.setup_workers)
+
+        self.ai_lock = threading.Lock()
+        self._stop_event = threading.Event()
+        self._ai_threads = []
 
     # ---------------------------------------------------------------------------
     # Move recording helper (used for AI + human) (For DATASET)
@@ -957,10 +968,24 @@ class SantoriniTk(tk.Tk):
     def start_new_game(self):
         """return to mode selection"""
         self.new_game_button.pack_forget()
-
         self._spinner_running = False
 
-        self.destroy()
+        # Signal threads to stop
+        self._stop_event.set()
+
+        # Poll for threads to finish to avoid touching Tk from background threads after destroy
+        def check_threads():
+            alive = [t for t in self._ai_threads if t.is_alive()]
+            if alive:
+                print(f"[SHUTDOWN] Waiting for {len(alive)} AI thread(s) to finish...")
+                # schedule to check again shortly
+                self.after(150, check_threads)
+            else:
+                # safe to destroy the Tk instance
+                print("[SHUTDOWN] AI threads finished; destroying window")
+                self.destroy()
+
+        check_threads()
 
     def on_click(self, event): #handle click
 
@@ -1113,7 +1138,12 @@ class SantoriniTk(tk.Tk):
             return
 
         # Pre-turn check
+        if not self.ai_lock.acquire(blocking=False):
+            print("[AI] Already running – skipping duplicate call")
+            return
+
         if self.check_game_state():
+            self.ai_lock.release()
             return
 
         player = self.board.current_player
@@ -1125,15 +1155,40 @@ class SantoriniTk(tk.Tk):
         self.show_ai_loading(player)
 
         # AI in thread
-        import threading
-        t = threading.Thread(target=self.run_ai, daemon=True)
+        t = threading.Thread(target=self.run_ai, daemon=False)
+        self._ai_threads.append(t)
         t.start()
 
     def run_ai(self):
+        import threading
+        tid = threading.get_ident()
+        print(f"[AI] thread start {tid}")
         player = self.board.current_player
         agent = self.controller.players[player]["agent"]
-        eval_value, action = agent.decide_action(self.board)
+        # If shutdown was requested, abort early and release the AI lock
+        if getattr(self, "_stop_event", None) is not None and self._stop_event.is_set():
+            print("[AI] stop event set; aborting ai thread start")
+            try:
+                self.ai_lock.release()
+            except Exception:
+                pass
+            return
+
+        for name in ("tk", "PhotoImage", "Label", "Widget"):
+            if hasattr(agent, name) or (getattr(agent, "model", None) is not None and hasattr(agent.model, name)):
+                print("[AI] WARNING: agent or model contains a tkinter attribute", name)
+
+        try:
+            eval_value, action = agent.decide_action(self.board)
+        except Exception as e:
+            print("AI thread crashed:", e)
+            import traceback
+            traceback.print_exc()
+            self.after(0, lambda: self.finish_ai_turn(player, None, None, agent))
+            return
+
         self.after(0, lambda: self.finish_ai_turn(player, eval_value, action, agent))
+        print(f"[AI] thread done {tid}")
 
     def finish_ai_turn(self, player, eval_value, action, agent):
         self.hide_ai_loading()
@@ -1187,6 +1242,7 @@ class SantoriniTk(tk.Tk):
 
         print(f"[DEBUG] AI {worker.owner} built at {build}, about to end turn")
         self.controller.end_turn()
+        self.ai_lock.release()
         self.draw()
 
         if won:

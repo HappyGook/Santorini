@@ -46,7 +46,6 @@ class Agent:
         self.depth = depth
         self.rng = random.Random(rng_seed)
         self.algo: AlgoName = algo
-        self.model = model
         self.iters = iters
         self.model = model
 
