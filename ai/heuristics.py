@@ -9,7 +9,7 @@ For now I have made 3 factors:
 
 from game.board import BOARD_SIZE
 from game.rules import legal_moves, is_win_after_move, legal_builds
-from game.models import MAX_LEVEL
+from game.moves import move_worker, build_block
 
 def local_tower_control(board_state, workers):
     """
@@ -41,7 +41,7 @@ def distance_to_nearest_level3(board_state, pos):
         if board_state.get_cell((x, y)).height == 3
     ]
     if not level3_positions:
-        return BOARD_SIZE * 2  
+        return BOARD_SIZE * 2
 
     x0, y0 = pos
     # Chebyshev distance = max(|dx|, |dy|)
@@ -151,7 +151,7 @@ def evaluate_mcts(board_state, player_id):
     my_workers = [w for w in board_state.workers if w.owner == player_id]
     opponent_workers = [w for w in board_state.workers if w.owner != player_id]
 
-    
+
     root_player_id = game_config.get_player_id(player_id)
     # Win in one move?
     for w in my_workers:
@@ -196,9 +196,9 @@ def evaluate_mcts(board_state, player_id):
             elif diff == 0:
                 opp_mobility += 1.0
             elif diff < 0:
-                opp_mobility += 0.5           
+                opp_mobility += 0.5
 
-    mobility = my_mobility - opp_mobility 
+    mobility = my_mobility - opp_mobility
 
     # Distance to nearest level 3
     level3 = [
@@ -237,14 +237,14 @@ def evaluate_mcts(board_state, player_id):
         v = 0.5
     if v < -0.5:
         v = -0.5
-    return v   
+    return v
 
 
 def find_win_in_one(board, player_id):
-    
+
     #Returns (worker, move_pos, build_pos) if player_id can win in one move,
     #otherwise returns None.
-    
+
     workers = [w for w in board.workers if w.owner == player_id]
 
     for w in workers:
@@ -278,3 +278,73 @@ def opponent_can_win_in_one(board_state, root_player_id: str) -> bool:
                 if is_win_after_move(board_state, src, move):
                     return True
     return False
+
+def simulate_action(board, worker, move, build):
+    new_board = board.clone()
+
+    # Find worker on cloned board
+    cloned_worker = None
+    for w in new_board.workers:
+        if w.id == worker.id:
+            cloned_worker = w
+            break
+    if cloned_worker is None:
+        return None, None
+
+    won = move_worker(new_board, cloned_worker, move)
+    if cloned_worker.pos != move:
+        return None, None
+
+    build_block(new_board, cloned_worker, build)
+
+    return new_board, won
+
+def evaluate_action(board, player_id, action):
+    worker, move, build = action
+    new_board, won = simulate_action(board, worker, move, build)
+
+    if new_board is None:  # illegal
+        return -99.0
+
+    if won:
+        return 100.0
+
+    # Positional heuristics AFTER move
+    my_workers = [w for w in new_board.workers if w.owner == player_id]
+    opponent_workers = [w for w in new_board.workers if w.owner != player_id]
+
+    # --- height advantage ---
+    my_height = sum(new_board.get_cell(w.pos).height for w in my_workers)
+    opp_height = sum(new_board.get_cell(w.pos).height for w in opponent_workers) /2.0
+    height_adv = my_height - opp_height
+
+    # --- mobility ---
+    def mobility_score(workers):
+        score = 0.0
+        for w in workers:
+            curr_h = new_board.get_cell(w.pos).height
+            for dst in legal_moves(new_board, w.pos):
+                dst_h = new_board.get_cell(dst).height
+                if dst_h > curr_h:
+                    score += 2.0
+                elif dst_h == curr_h:
+                    score += 1.0
+                else:
+                    score += 0.5
+        return score
+
+    mobility = mobility_score(my_workers) - (mobility_score(opponent_workers) /2.0)
+
+    # --- proximity to level 3 ---
+    def proximity_score(w_list):
+        s = 0.0
+        for w in w_list:
+            d = distance_to_nearest_level3(new_board, w.pos)
+            s += 10.0 if d == 0 else 1.0 / (d + 0.5)
+        return s
+
+    proximity = proximity_score(my_workers) - (proximity_score(opponent_workers) /2.0)
+
+    # Weighted sum
+    score = 15 * height_adv + 9 * mobility + 18 * proximity
+    return score

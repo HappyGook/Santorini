@@ -1,7 +1,7 @@
 import os
 
 import torch
-from ai.heuristics import evaluate
+from ai.heuristics import evaluate_action
 from game import rules
 from game.board import Board
 from ai.agent import Agent
@@ -13,13 +13,13 @@ from game.moves import place_worker
 
 def make_agents(game_config, model, training_mode):
     if training_mode == "guided":
-        return [Agent(f"P{i+1}", algo="maxn", depth=2) for i in range(game_config.num_players)]
+        return [Agent(f"P{i+1}", algo="mcts", depth=3, iters=1000) for i in range(game_config.num_players)]
     return [Agent(f"P{i+1}", algo="ml", model=model) for i in range(game_config.num_players)]
 
 def compute_reward(winner, win_type, agents):
     """Reward shaping endpoint."""
     if win_type == "climb":
-        win_value = 1.0
+        win_value = 2.0
     elif win_type == "elimination":
         win_value = 0.25
     else:
@@ -93,8 +93,12 @@ def selfplay(controller_class, game_config, model_path, dataset_path, num_games=
                     break
                 continue
 
-            ml_score, action = agent.decide_action(board)
-            if training_mode == "selfplay":
+            guided_mode = (training_mode == "guided")
+            if guided_mode:
+                action = agent.decide_action(board)[1]
+                ml_score = None
+            else:
+                ml_score, action = agent.decide_action(board)
                 game_ml_scores.append(float(ml_score))
             if action is None:
                 print(f"[DEBUG] {pid} returned no action.")
@@ -141,12 +145,16 @@ def selfplay(controller_class, game_config, model_path, dataset_path, num_games=
                     print(f"DUPLICATE POSITION: {seen[ww.pos]} and {ww.id} on {ww.pos}")
                 seen[ww.pos] = ww.id
 
-            heuristic_score = evaluate(board, pid)
-            delta = abs(ml_score - heuristic_score/1000)
-            print(f"[SELFPLAY DEBUG] Model scored the move as {ml_score}, heuristic scored as {heuristic_score/1000}, delta={delta:.4f}")
+            action_tuple = (worker, move, build)
+            heuristic_score = evaluate_action(board, pid, action_tuple)
+            if guided_mode:
+                print(f"[GUIDED DEBUG]  heuristic scored as {heuristic_score/100}")
+            else:
+                delta = abs(ml_score - heuristic_score/100)
+                print(f"[SELFPLAY DEBUG] Model scored as {ml_score}, heuristic scored as {heuristic_score/100}, delta={delta:.4f}")
 
-            dataset.add_sample(board, pid, (worker, move, build), float(heuristic_score))
-            game_records.append((board.clone(), action, pid, float(heuristic_score)))
+            dataset.add_sample(board, pid, action_tuple, float(heuristic_score*10))
+            game_records.append((board.clone(), action_tuple, pid, float(heuristic_score)))
 
             # Win check
             if won:
