@@ -31,12 +31,16 @@ def update_setup_positions(statistics, setup_data):
     for player_id, algo, positions in setup_data:
         # Track setup positions for each algorithm
         if algo not in statistics['setup_positions']:
-            statistics['setup_positions'][algo] = Counter()
+            statistics['setup_positions'][algo] = {}
 
         # Convert positions tuple to string for JSON serialization
         setup_key = f"{positions[0]}_{positions[1]}"
-        statistics['setup_positions'][algo][setup_key] += 1
 
+        # Initialize the key if it doesn't exist
+        if setup_key not in statistics['setup_positions'][algo]:
+            statistics['setup_positions'][algo][setup_key] = 0
+
+        statistics['setup_positions'][algo][setup_key] += 1
 
 def update_statistics(statistics, game_data):
     """Update statistics with new game data."""
@@ -87,27 +91,6 @@ def update_statistics(statistics, game_data):
         stats[player_key]['games'] += 1
 
         if algo == winner_algo and player_id == winner_player_id:
-            stats['wins'] += 1
-            stats[player_key]['wins'] += 1
-        else:
-            stats['losses'] += 1
-            stats[player_key]['losses'] += 1
-
-        # Update win rates
-        stats['win_rate'] = stats['wins'] / stats['total_games']
-        stats[player_key]['win_rate'] = stats[player_key]['wins'] / stats[player_key]['games']
-
-    # Update game counts and wins/losses for both overall and player-position stats
-    for player_id, algo in participants:
-        # Update overall algorithm stats
-        stats = statistics['algorithm_stats'][algo]
-        stats['total_games'] += 1
-
-        # Update player position stats
-        player_key = f'{player_id}'
-        stats[player_key]['games'] += 1
-
-        if algo == winner_algo:
             stats['wins'] += 1
             stats[player_key]['wins'] += 1
         else:
