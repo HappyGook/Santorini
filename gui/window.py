@@ -316,7 +316,7 @@ def choose_mode_ui() -> Dict[str, Any]:
                     # Load the ML model
                     if not ml_model_loaded:
                         ml_model = SantoNeuroNet()
-                        ml_model.load_checkpoint("ml/learned_models/model1.pt")
+                        ml_model.load_checkpoint("ml/learned_models/model2.pt")
                         ml_model_loaded = True
                     ai[pid] = {"algo": algo, "depth": depth, "iters": iters, "model": ml_model}
                 else:
@@ -354,7 +354,7 @@ def build_players(mode_sel, game_config):
             if cfg.get("model") is not None:
                 agent_cfg = {k: v for k, v in cfg.items() if k != "model"}
                 ml_model = SantoNeuroNet()
-                ml_model.load_checkpoint("ml/learned_models/model1.pt")
+                ml_model.load_checkpoint("ml/learned_models/model2.pt")
                 agent_cfg["model"] = ml_model
                 players[pid] = {"type": "AI", "agent": Agent(pid, **agent_cfg)}
             else:
