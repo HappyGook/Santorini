@@ -70,9 +70,14 @@ def selfplay(controller_class, game_config, model_path, dataset_path, num_games=
         players = {a.player_id: {"type": "AI", "agent": a} for a in agents}
         controller = controller_class(board, players, game_config)
 
+        setup_data = []
+        
         # place workers
         for agent in agents:
             positions = agent.setup_workers(board)
+            if training_mode == "statistics":
+                setup_data.append((agent.player_id, agent.algo, positions))
+                
             for i, pos in enumerate(positions):
                 place_worker(board, f"{agent.player_id}{'A' if i == 0 else 'B'}", agent.player_id, pos)
             print(f"{agent.player_id} setup positions: {positions}")
@@ -83,7 +88,7 @@ def selfplay(controller_class, game_config, model_path, dataset_path, num_games=
         turn_count = 0
         game_ml_scores = []  # Track ML scores for the game
         
-        # Statistics tracking for current game
+        # Statistics tracking for current game - now includes player position
         game_moves_data = defaultdict(lambda: {
             'total_moves': 0,
             'up_moves': 0,
@@ -165,18 +170,19 @@ def selfplay(controller_class, game_config, model_path, dataset_path, num_games=
                 new_height = board.get_cell(move).height
                 height_change = new_height - old_height
                 
-                algo = agent.algo
-                game_moves_data[algo]['total_moves'] += 1
+                # Create key with algorithm and player position for tracking
+                algo_player_key = f"{agent.algo}_moves_{pid}"
+                game_moves_data[algo_player_key]['total_moves'] += 1
                 
                 if height_change > 0:
-                    game_moves_data[algo]['up_moves'] += 1
+                    game_moves_data[algo_player_key]['up_moves'] += 1
                 elif height_change < 0:
-                    game_moves_data[algo]['down_moves'] += 1
+                    game_moves_data[algo_player_key]['down_moves'] += 1
                 else:
-                    game_moves_data[algo]['same_level_moves'] += 1
+                    game_moves_data[algo_player_key]['same_level_moves'] += 1
                 
                 # Track positions
-                game_moves_data[algo]['positions'][str(move)] += 1
+                game_moves_data[algo_player_key]['positions'][str(move)] += 1
 
             ok_move, won = controller.apply_move(worker, move)
             if not ok_move:
@@ -204,8 +210,9 @@ def selfplay(controller_class, game_config, model_path, dataset_path, num_games=
             # Update statistics with normalized score
             if statistics_mode:
                 normalized_score = normalize_score(heuristic_score)
-                game_moves_data[agent.algo]['score_sum'] += normalized_score
-                game_moves_data[agent.algo]['score_count'] += 1
+                algo_player_key = f"{agent.algo}_moves_{pid}"
+                game_moves_data[algo_player_key]['score_sum'] += normalized_score
+                game_moves_data[algo_player_key]['score_count'] += 1
                 
             if guided_mode:
                 print(f"[GUIDED DEBUG]  heuristic scored as {heuristic_score/100}")
@@ -268,8 +275,10 @@ def selfplay(controller_class, game_config, model_path, dataset_path, num_games=
             winner_agent = next(a for a in agents if a.player_id == winner)
             game_data = {
                 'winner_algo': winner_agent.algo,
+                'winner_player_id': winner,
                 'participants': [(a.player_id, a.algo) for a in agents],
-                'moves_data': dict(game_moves_data)
+                'moves_data': dict(game_moves_data),
+                'setup_data': setup_data
             }
             update_statistics(statistics, game_data)
 
@@ -348,18 +357,18 @@ def selfplay(controller_class, game_config, model_path, dataset_path, num_games=
         if g % 10 == 0:
             if training_mode == "selfplay":
                 ml_model.save_checkpoint(model_path, optimizer=optimizer, epoch=g)
-            
+
             # Print training summary every 10 games
             if training_mode == "selfplay" and len(training_log) >= 10:
                 recent_losses = [m['loss'] for m in training_log[-10:] if 'loss' in m]
                 recent_maes = [m['mae'] for m in training_log[-10:] if 'mae' in m]
                 recent_grad_norms = [m['grad_norm'] for m in training_log[-10:] if 'grad_norm' in m]
-                
+
                 if recent_losses:
                     print(f"[SUMMARY] Last 10 games - Avg Loss: {sum(recent_losses)/len(recent_losses):.4f}, "
                           f"Avg MAE: {sum(recent_maes)/len(recent_maes):.4f}, "
                           f"Avg Grad Norm: {sum(recent_grad_norms)/len(recent_grad_norms):.4f}")
-            
+
             elif training_mode == "statistics" and statistics:
                 # Print statistics summary
                 print(f"[STATISTICS SUMMARY] Total games played: {statistics['total_games_played']}")
@@ -367,19 +376,19 @@ def selfplay(controller_class, game_config, model_path, dataset_path, num_games=
                     algo_stats = statistics['algorithm_stats'][algo]
                     print(f"  {algo}: {algo_stats['wins']}W-{algo_stats['losses']}L "
                           f"(Win rate: {algo_stats['win_rate']:.3f}, Games: {algo_stats['total_games']})")
-    
+
     # Save final training log
     if training_log:
         log_path = dataset_path + "_training_log.json"
         with open(log_path, 'w') as f:
             json.dump(training_log, f, indent=2)
         print(f"Training log saved to {log_path}")
-    
+
     # Final save for statistics mode
     if training_mode == "statistics" and statistics:
         with open(stats_path, 'w') as f:
             json.dump(statistics, f, indent=2)
         print(f"Final statistics saved to {stats_path}")
         return statistics
-    
+
     return training_log

@@ -1,5 +1,6 @@
 import json
 import os
+from collections import Counter
 
 
 def normalize_score(score, min_val=-1000, max_val=1000):
@@ -16,19 +17,41 @@ def load_existing_statistics(stats_path):
         return {
             'total_games_played': 0,
             'algorithm_stats': {},
+            'setup_positions': {},  # Setup position tracking
             'head_to_head': {},
             'algorithm_combinations': {}
         }
 
 
+def update_setup_positions(statistics, setup_data):
+    """Update setup position statistics."""
+    if 'setup_positions' not in statistics:
+        statistics['setup_positions'] = {}
+
+    for player_id, algo, positions in setup_data:
+        # Track setup positions for each algorithm
+        if algo not in statistics['setup_positions']:
+            statistics['setup_positions'][algo] = Counter()
+
+        # Convert positions tuple to string for JSON serialization
+        setup_key = f"{positions[0]}_{positions[1]}"
+        statistics['setup_positions'][algo][setup_key] += 1
+
+
 def update_statistics(statistics, game_data):
     """Update statistics with new game data."""
     winner_algo = game_data['winner_algo']
+    winner_player_id = game_data.get('winner_player_id')
     participants = game_data['participants']
     game_moves_data = game_data['moves_data']
+    setup_data = game_data.get('setup_data', [])
 
     # Update total games played
     statistics['total_games_played'] += 1
+
+    # Update setup positions
+    if setup_data:
+        update_setup_positions(statistics, setup_data)
 
     # Initialize algorithm stats if not present
     for player_id, algo in participants:
@@ -44,37 +67,78 @@ def update_statistics(statistics, game_data):
                 'same_level_moves': 0,
                 'mean_score': 0.0,
                 'score_sum': 0.0,
-                'score_count': 0
+                'score_count': 0,
+                'P1': {'games': 0, 'wins': 0, 'losses': 0, 'win_rate': 0.0},
+                'P2': {'games': 0, 'wins': 0, 'losses': 0, 'win_rate': 0.0},
+                'P3': {'games': 0, 'wins': 0, 'losses': 0, 'win_rate': 0.0}
             }
 
-    # Update game counts and wins/losses
+    # Update game counts and wins/losses for both overall and player-position stats
     for player_id, algo in participants:
+        # Update overall algorithm stats
         stats = statistics['algorithm_stats'][algo]
         stats['total_games'] += 1
 
-        if algo == winner_algo:
+        # Update player position stats
+        player_key = player_id  # Use 'P1', 'P2', 'P3' directly
+        if player_key not in stats:
+            stats[player_key] = {'games': 0, 'wins': 0, 'losses': 0, 'win_rate': 0.0}
+
+        stats[player_key]['games'] += 1
+
+        if algo == winner_algo and player_id == winner_player_id:
             stats['wins'] += 1
+            stats[player_key]['wins'] += 1
         else:
             stats['losses'] += 1
+            stats[player_key]['losses'] += 1
 
-        # Update win rate
+        # Update win rates
         stats['win_rate'] = stats['wins'] / stats['total_games']
+        stats[player_key]['win_rate'] = stats[player_key]['wins'] / stats[player_key]['games']
 
-    # Update move-specific data
-    for algo, moves_info in game_moves_data.items():
+    # Update game counts and wins/losses for both overall and player-position stats
+    for player_id, algo in participants:
+        # Update overall algorithm stats
         stats = statistics['algorithm_stats'][algo]
-        stats['total_moves'] += moves_info['total_moves']
-        stats['up_moves'] += moves_info['up_moves']
-        stats['down_moves'] += moves_info['down_moves']
-        stats['same_level_moves'] += moves_info['same_level_moves']
+        stats['total_games'] += 1
 
-        # Update mean score
-        stats['score_sum'] += moves_info['score_sum']
-        stats['score_count'] += moves_info['score_count']
-        if stats['score_count'] > 0:
-            stats['mean_score'] = stats['score_sum'] / stats['score_count']
+        # Update player position stats
+        player_key = f'{player_id}'
+        stats[player_key]['games'] += 1
 
-    # Update head-to-head records
+        if algo == winner_algo:
+            stats['wins'] += 1
+            stats[player_key]['wins'] += 1
+        else:
+            stats['losses'] += 1
+            stats[player_key]['losses'] += 1
+
+        # Update win rates
+        stats['win_rate'] = stats['wins'] / stats['total_games']
+        stats[player_key]['win_rate'] = stats[player_key]['wins'] / stats[player_key]['games']
+
+    # Update move-specific data for both overall and player-position stats
+    for algo_player, moves_info in game_moves_data.items():
+        # Extract algorithm and player_id from the key
+        if '_moves_' in algo_player:
+            algo, player_id = algo_player.split('_moves_')
+
+            # Update overall algorithm stats
+            if algo in statistics['algorithm_stats']:
+                stats = statistics['algorithm_stats'][algo]
+                stats['total_moves'] += moves_info['total_moves']
+                stats['up_moves'] += moves_info['up_moves']
+                stats['down_moves'] += moves_info['down_moves']
+                stats['same_level_moves'] += moves_info['same_level_moves']
+
+                # Update mean score
+                stats['score_sum'] += moves_info['score_sum']
+                stats['score_count'] += moves_info['score_count']
+                if stats['score_count'] > 0:
+                    stats['mean_score'] = stats['score_sum'] / stats['score_count']
+
+    # Update head-to-head records (keeping existing logic)
     if 'head_to_head' not in statistics:
         statistics['head_to_head'] = {}
 
@@ -92,16 +156,3 @@ def update_statistics(statistics, game_data):
                     statistics['head_to_head'][algo][other_algo]['wins'] += 1
                 else:
                     statistics['head_to_head'][algo][other_algo]['losses'] += 1
-
-    # Update algorithm combinations
-    if 'algorithm_combinations' not in statistics:
-        statistics['algorithm_combinations'] = {}
-
-    combo_key = '_vs_'.join(sorted([algo for _, algo in participants]))
-    if combo_key not in statistics['algorithm_combinations']:
-        statistics['algorithm_combinations'][combo_key] = {'games': 0, 'winners': {}}
-
-    statistics['algorithm_combinations'][combo_key]['games'] += 1
-    if winner_algo not in statistics['algorithm_combinations'][combo_key]['winners']:
-        statistics['algorithm_combinations'][combo_key]['winners'][winner_algo] = 0
-    statistics['algorithm_combinations'][combo_key]['winners'][winner_algo] += 1
