@@ -12,8 +12,7 @@ from game import board
 
 from game.board import BOARD_SIZE
 from ai.phrases import PHRASES_BY_PLAYER
-from ai.mcts import mcts, SearchStats
-from game.rules import legal_moves, is_win_after_move, legal_builds
+from ai.mcts import SearchStats
 from ai.heuristics import find_win_in_one
 
 import rust

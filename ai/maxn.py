@@ -1,14 +1,11 @@
-from typing import Tuple, List
 from ai.heuristics import evaluate, order_moves
 from game import rules
-from game.config import GameConfig
+
 from game.moves import move_worker, build_block
-from game.rules import legal_moves, legal_builds, all_legal_actions
+from game.rules import all_legal_actions
 
 # infinity const for evaluation win/lose
 INF = 10 ** 9
-# the type for ai's action (worker, move, build)
-Action = Tuple[object, Tuple[int, int], Tuple[int, int]]
 
 TT = {}
 
@@ -100,27 +97,6 @@ def maxn(board, depth, player_index, game_config, stats, ancestor_index=None, an
 
     TT[key] = (best_vector, best_action)
     return best_vector, best_action
-
-def generate_actions(board, player_id) -> List[Action]:
-    actions = []
-    workers = [w for w in board.workers if w.owner == player_id]
-    for worker in workers:
-        for move in legal_moves(board, worker.pos):
-            for build in legal_builds(board, move):
-                actions.append((worker, move, build))
-    return actions
-
-
-def next_player_index(current_index: int, num_players: int) -> int:
-    """Simple modular rotation - can be moved to config"""
-    return (current_index + 1) % num_players
-
-
-def next_player(player_id: str, game_config: GameConfig) -> str:
-    current_index = game_config.get_player_index(player_id)
-    next_index = game_config.next_player_index(current_index)
-    return game_config.get_player_id(next_index)
-
 
 def find_worker_by_id(board, worker_id):
     return next((w for w in board.workers if w.id == worker_id), None)
