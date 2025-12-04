@@ -27,7 +27,7 @@ from pathlib import Path
 from game.config import CELL, MARGIN, COLOR_MOVE, COLOR_BUILD, COLOR_SELECTED, PLAYER_COLORS, PLAYER_IMAGES
 from game.moves import place_worker
 from ml.model import SantoNeuroNet
-
+from ai.move_rating import rate_move
 
 TITLE_FONT = ("Segoe UI", 14, "bold")     # headings
 SUBTITLE_FONT = ("Segoe UI", 12, "bold")  # section titles
@@ -532,6 +532,11 @@ class SantoriniTk(tk.Tk):
         self.src = None
         self.legal = []
         self.setup_label = "A"
+
+        # rating for move_rating store before action
+        self.rating_board_before_move = None
+        self.rating_src = None
+        self.rating_dst = None
 
         self.canvas.bind("<Button-1>", self.on_click)
         self.bind("<Escape>", lambda e: self.on_escape())
@@ -1074,6 +1079,12 @@ class SantoriniTk(tk.Tk):
             if rc in self.legal and self.selected_worker is not None:
                 src = self.src
                 dst = rc
+
+            #clone board for rating before move
+                self.rating_board_before_move = self.board.clone()
+                self.rating_src = src
+                self.rating_dst = dst
+
                 ok,won= self.controller.apply_move(self.selected_worker, dst)
                 if not ok:
                     self.draw(f"{player}: illegal move")
@@ -1106,12 +1117,53 @@ class SantoriniTk(tk.Tk):
                 if not ok:
                     self.draw(f"{player}: illegal build")
                     return
+                
+                move_rating = None
+                move_label = None # if rating cant be computed
 
-                self.record_move(player, self.selected_worker, self.src, rc)
+                try:
+                    if self.rating_board_before_move is not None and self.rating_src is not None and self.rating_dst is not None:
+                        board_before = self.rating_board_before_move
+
+                        # Find the  worker on the old board (same owner + src position)
+                        worker_before = None
+                        for w in board_before.workers:
+                            if w.owner == player and w.pos == self.rating_src:
+                                worker_before = w
+                                break
+
+                        if worker_before is not None:
+                            action_played = (worker_before, self.rating_dst, rc)
+                            move_rating, move_label, details = rate_move(
+                                board_before,
+                                player,
+                                action_played
+                            )
+                        else:
+                            print("[RATING] Could not find matching worker on previous board")
+                    else:
+                        print("[RATING] Previous board state for rating is missing")
+
+                except Exception as e:
+                    print(f"[RATING] Failed to compute rating: {e}")
+                    move_rating = None
+                    move_label = None
+
+                if move_rating is not None:
+                    self.record_move(player, self.selected_worker, self.src, rc, score = move_rating)
+                else:
+                    self.record_move(player, self.selected_worker, self.src, rc)
 
                 # Record turn in notation
                 self.notation.record_turn(self.src, self.selected_worker.pos, rc)
                 self.update_notation()
+
+                # Clear temporary rating state
+                self.rating_board_before_move = None
+                self.rating_src = None
+                self.rating_dst = None
+
+
 
                 print(f"[DEBUG] {player} built at {rc}, about to end turn")
                 self.controller.end_turn()
@@ -1126,6 +1178,12 @@ class SantoriniTk(tk.Tk):
                 # switch player
                 who = self.board.current_player
                 self.draw(f"Built at {coords_to_notation(rc)} - {who}'s turn")
+
+
+                msg = f"Built at {coords_to_notation(rc)} - {who}'s turn"
+                if move_label is not None and move_rating is not None:
+                    msg += f" | {player}: {move_label} ({move_rating:+.2f})"
+                self.draw(msg)
 
                 if self.controller.is_ai_turn() and not self.game_over:
                     self.after(50, self.ai_pump)
