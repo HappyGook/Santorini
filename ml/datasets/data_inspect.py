@@ -208,4 +208,4 @@ def inspect_dataset(path, n_samples=5, n_visual=4):
 
 
 if __name__ == "__main__":
-    inspect_dataset("guided_games.npz")
+    inspect_dataset("selfplay_tries1.npz")
