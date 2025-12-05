@@ -46,10 +46,7 @@ class GameController:
         if dst not in self.legal_moves_for(worker):
             return False
         won = move_worker(self.board, worker, dst)
-        return (True,won)
-
-        move_worker(self.board, worker, dst)
-        return True
+        return True,won
 
     def apply_build(self, worker, build_pos:Tuple[int,int]) -> bool:
         if build_pos not in self.legal_builds_for(worker):
@@ -60,14 +57,14 @@ class GameController:
 #entry point ai to run on tkinter
     def run_ai_turn(self):
         if not self.is_ai_turn():
-            return("skip",None,None)
+            return "skip",None,None
 
         agent = self.players[self.board.current_player].get("agent")
         worker, move_dst = agent.make_move(self.board)
         if worker is None or move_dst is None:
                   #no legal moves -> opponent wins
             self.end_turn()
-            return ("no_moves",None,None)
+            return "no_moves",None,None
 
         self.apply_move(worker, move_dst)
         build_pos = agent.build(worker, self.board)
@@ -75,4 +72,4 @@ class GameController:
             self.apply_build(worker, build_pos)
 
         self.end_turn()
-        return ("moved", worker, (move_dst, build_pos))
+        return "moved", worker, (move_dst, build_pos)

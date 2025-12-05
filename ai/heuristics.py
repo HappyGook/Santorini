@@ -73,13 +73,13 @@ def evaluate(board_state, player_id):
     def mob_score(workers):
         s = 0.0
         for w in workers:
-            currentH = board_state.get_cell(w.pos).height
+            current_h = board_state.get_cell(w.pos).height
             moves = legal_moves(board_state, w.pos)
             up = flat = down = 0
-            for dst in moves:
-                dstH = board_state.get_cell(dst).height
-                if dstH > currentH:   up += 1
-                elif dstH == currentH: flat += 1
+            for distance in moves:
+                dst_h = board_state.get_cell(distance).height
+                if dst_h > current_h:   up += 1
+                elif dst_h == current_h: flat += 1
                 else:            down += 1
             s += 2.0 * up + 1.0 * flat + 0.5 * down
         return s
@@ -133,7 +133,7 @@ def order_moves(board, moves):
         # 4. Building high (deny opponent climbing paths)
         build_score = build_height * 10
 
-        return (cap_bonus, climb_delta, position_height, build_score)
+        return cap_bonus, climb_delta, position_height, build_score
 
     return sorted(moves, key=score_move, reverse=True)
 
@@ -257,7 +257,7 @@ def find_win_in_one(board, player_id):
                 # After a winning move, any legal build is fine; pick first
                 builds = legal_builds(board, move)
                 build_pos = builds[0] if builds else move
-                return (w, move, build_pos)
+                return w, move, build_pos
 
     return None
 
@@ -320,18 +320,18 @@ def evaluate_action(board, player_id, action):
 
     # --- mobility ---
     def mobility_score(workers):
-        score = 0.0
+        mob_score = 0.0
         for w in workers:
             curr_h = new_board.get_cell(w.pos).height
             for dst in legal_moves(new_board, w.pos):
                 dst_h = new_board.get_cell(dst).height
                 if dst_h > curr_h:
-                    score += 2.0
+                    mob_score += 2.0
                 elif dst_h == curr_h:
-                    score += 1.0
+                    mob_score += 1.0
                 else:
-                    score += 0.5
-        return score
+                    mob_score += 0.5
+        return mob_score
 
     mobility = mobility_score(my_workers) - (mobility_score(opponent_workers) /2.0)
 

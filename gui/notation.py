@@ -14,7 +14,7 @@ def notation_to_coords(s: str) -> Tuple[int, int]:
 
     col = ord(s[0]) - ord('a')   # letters to col a->0 b->1 c->2 d->3 e->4
     row = int(s[1:]) - 1         # num map to rows
-    return (row, col)            # fix cos u return (col, row last time)
+    return row, col  # fix cos u return (col, row last time)
 
 class GameNotation:
     def __init__(self):

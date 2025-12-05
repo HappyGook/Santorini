@@ -1,20 +1,15 @@
 from __future__ import annotations
-
 import math
 import random
 from typing import Optional, Tuple, Literal
 from sympy.categories import Object
-
 import ai.minimax as mm
 import ai.maxn as mx
 import ai.mcts as mc
-from game import board
-
 from game.board import BOARD_SIZE
 from ai.phrases import PHRASES_BY_PLAYER
 from ai.mcts import SearchStats
 from ai.heuristics import find_win_in_one
-
 import rust
 
 

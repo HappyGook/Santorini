@@ -1,7 +1,6 @@
 from ai.heuristics import evaluate, order_moves
 from game import rules
-
-from game.moves import move_worker, build_block
+from game.moves import move_worker, build_block, find_worker_by_id
 from game.rules import all_legal_actions
 
 # infinity const for evaluation win/lose
@@ -97,10 +96,6 @@ def maxn(board, depth, player_index, game_config, stats, ancestor_index=None, an
 
     TT[key] = (best_vector, best_action)
     return best_vector, best_action
-
-def find_worker_by_id(board, worker_id):
-    return next((w for w in board.workers if w.id == worker_id), None)
-
 
 class SearchStats:
     def __init__(self):

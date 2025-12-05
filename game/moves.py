@@ -4,6 +4,9 @@ from game.models import Worker
 from game.rules import can_place_worker
 Coord = Tuple[int, int]
 
+def find_worker_by_id(board, worker_id):
+    return next((w for w in board.workers if w.id == worker_id), None)
+
 def move_worker(board: Board, worker: Worker, dst: Coord) -> bool:
     src = worker.pos
 

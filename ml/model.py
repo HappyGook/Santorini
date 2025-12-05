@@ -22,10 +22,10 @@ class ConvBlock(nn.Module):
         self.bn = nn.BatchNorm2d(out_ch)
         self.act = nn.ReLU(inplace=True)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.conv(x)
-        x = self.bn(x)
-        return self.act(x)
+    def forward(self, f_x: torch.Tensor) -> torch.Tensor:
+        f_x = self.conv(f_x)
+        f_x = self.bn(f_x)
+        return self.act(f_x)
 
 
 class SantoNeuroNet(nn.Module):
@@ -82,12 +82,12 @@ class SantoNeuroNet(nn.Module):
                 if getattr(m, "bias", None) is not None:
                     nn.init.zeros_(m.bias)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, f_x: torch.Tensor) -> torch.Tensor:
         """
         Forward pass.
 
         Args:
-            x: (batch, 14, 5, 5) float tensor containing:
+            f_x: (batch, 14, 5, 5) float tensor containing:
                - Channels 0-10: board state (heights 1-3, dome, workers of each player, active player)
                - Channels 11-14: action encoding (worker pos, move pos, build pos)
 
@@ -95,11 +95,11 @@ class SantoNeuroNet(nn.Module):
             value: (batch,) - scalar value in (-1, 1)
         """
         # Shared trunk
-        x = self.input_block(x)   # -> (batch, filters, 5, 5)
-        x = self.trunk(x)         # -> (batch, filters, 5, 5)
+        f_x = self.input_block(f_x)   # -> (batch, filters, 5, 5)
+        f_x = self.trunk(f_x)         # -> (batch, filters, 5, 5)
 
         # Value head
-        v = self.value_conv(x)
+        v = self.value_conv(f_x)
         v = self.value_bn(v)
         v = self.value_act(v)  # -> (batch, filters//2, 5, 5)
         v = v.view(v.size(0), -1)  # flatten
@@ -152,8 +152,8 @@ class SantoNeuroNet(nn.Module):
         inputs = torch.cat([board_batch, action_encodings], dim=1)  # (num_actions, 14, 5, 5)
 
         # Evaluate
-        values = self.forward(inputs)
-        return values
+        eval_values = self.forward(inputs)
+        return eval_values
 
 
 def value_loss(
