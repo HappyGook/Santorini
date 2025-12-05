@@ -145,6 +145,17 @@ class Agent:
                 raise Exception("A trained model must be passed for ML mode")
             eval_value, action = ml_inference(board_state, player_index, self.model, stats)
 
+        elif self.algo == "maxn_NN":
+            vector, action = mx.maxn(
+                board_state,
+                depth=self.depth,
+                player_index=player_index,
+                game_config=game_config,
+                stats=stats,
+                ml_model=self.model
+            )
+            eval_value = vector
+
         else:
             
             raise ValueError(f"Unknown algorithm: {self.algo}")
