@@ -24,7 +24,7 @@ def make_agents(game_config, model, training_mode, p1_algo=None, p2_algo=None, p
         agents = []
         for i in range(game_config.num_players):
             algo = algos[i] if i < len(algos) else algos[0]
-            if algo == "ml":
+            if algo == "ml" or algo == "maxn_NN":
                 agents.append(Agent(f"P{i+1}", algo=algo, model=model, depth=2))
             elif algo in ["mcts", "mcts_NN"]:
                 agents.append(Agent(f"P{i+1}", algo=algo, iters=1000, depth=3))
@@ -110,7 +110,6 @@ def selfplay(controller_class, game_config, model_path, dataset_path, num_games=
                 board.eliminate_player(board.current_player)
                 if len(board.active_players) <= 1:
                     winner = board.active_players[0] if board.active_players else None
-                    game_over = True
                     break
                 turn_count += 1
                 continue
@@ -127,7 +126,6 @@ def selfplay(controller_class, game_config, model_path, dataset_path, num_games=
                 board.eliminate_player(pid)
                 if len(board.active_players) == 1:
                     winner = board.active_players[0]
-                    game_over = True
                     break
                 continue
 
@@ -236,7 +234,6 @@ def selfplay(controller_class, game_config, model_path, dataset_path, num_games=
                             print(f"  Worker {cell.worker_id} stands on a win-tile at {(r, c)}")
                 winner = pid
                 print(f"[GAME OVER] {winner} wins.")
-                game_over = True
                 break
 
             board.next_turn()
@@ -244,7 +241,6 @@ def selfplay(controller_class, game_config, model_path, dataset_path, num_games=
             if rules.game_over(board):
                 winner = board.current_player
                 print("[GAME OVER] only one player remains.")
-                game_over = True
                 break
 
             turn_count += 1

@@ -1,20 +1,15 @@
 from __future__ import annotations
-
 import math
 import random
 from typing import Optional, Tuple, Literal
 from sympy.categories import Object
-
 import ai.minimax as mm
 import ai.maxn as mx
 import ai.mcts as mc
-from game import board
-
 from game.board import BOARD_SIZE
 from ai.phrases import PHRASES_BY_PLAYER
 from ai.mcts import SearchStats
 from ai.heuristics import find_win_in_one
-
 import rust
 
 
@@ -149,6 +144,17 @@ class Agent:
             if self.model is None:
                 raise Exception("A trained model must be passed for ML mode")
             eval_value, action = ml_inference(board_state, player_index, self.model, stats)
+
+        elif self.algo == "maxn_NN":
+            vector, action = mx.maxn(
+                board_state,
+                depth=self.depth,
+                player_index=player_index,
+                game_config=game_config,
+                stats=stats,
+                ml_model=self.model
+            )
+            eval_value = vector
 
         else:
             

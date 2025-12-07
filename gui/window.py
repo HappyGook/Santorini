@@ -18,13 +18,13 @@ from game.rules import all_legal_actions
 from ml.dataset import SantoDataset
 from game.board import Board
 from game.config import GameConfig
-from game.models import BOARD_SIZE, Worker
+from game.models import BOARD_SIZE
 from gui.notation import coords_to_notation, GameNotation
 from ai.agent import Agent
 from gui.gameplay import GameController
 from PIL import Image, ImageTk
 from pathlib import Path
-from game.config import CELL, MARGIN, COLOR_MOVE, COLOR_BUILD, COLOR_SELECTED, PLAYER_COLORS, PLAYER_IMAGES
+from game.config import CELL, MARGIN, COLOR_MOVE, COLOR_BUILD, COLOR_SELECTED, PLAYER_COLORS
 from game.moves import place_worker
 from ml.model import SantoNeuroNet
 from ai.move_rating import rate_move

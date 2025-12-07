@@ -1,6 +1,5 @@
 import json
 import os
-from collections import Counter
 
 
 def normalize_score(score, min_val=-1000, max_val=1000):

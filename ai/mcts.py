@@ -2,8 +2,7 @@ import math
 import random
 from typing import Tuple, List
 from ai.heuristics import evaluate
-from game.config import GameConfig
-from game.moves import move_worker, build_block
+from game.moves import move_worker, build_block, find_worker_by_id
 from game.rules import legal_moves, legal_builds
 
 from ml.inference import ml_inference
@@ -222,7 +221,8 @@ def mcts(board, depth, player_index, game_config, stats, iters=None, ml_model=No
     iterations = int(iters) if iters is not None else max(1000, depth * 400)
     return mcts_search(board, player_index, game_config, stats, iterations, ml_model=ml_model, use_nn=use_nn)
 
-
+# A replacement for rules.all_legal_actions for mcts
+# Req due to hashing
 def generate_actions(board, player_id) -> List[Action]:
     actions = []
     workers = [w for w in board.workers if w.owner == player_id]
@@ -231,21 +231,6 @@ def generate_actions(board, player_id) -> List[Action]:
             for build in legal_builds(board, move):
                 actions.append((worker.id, move, build))
     return actions
-
-
-def next_player_index(current_index: int, num_players: int) -> int:
-    """Simple modular rotation - can be moved to config"""
-    return (current_index + 1) % num_players
-
-
-def next_player(player_id: str, game_config: GameConfig) -> str:
-    current_index = game_config.get_player_index(player_id)
-    next_index = game_config.next_player_index(current_index)
-    return game_config.get_player_id(next_index)
-
-
-def find_worker_by_id(board, worker_id):
-    return next((w for w in board.workers if w.id == worker_id), None)
 
 
 class SearchStats:

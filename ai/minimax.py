@@ -1,5 +1,5 @@
 from ai.heuristics import evaluate, order_moves
-from game.moves import move_worker, build_block
+from game.moves import move_worker, build_block, find_worker_by_id
 from game.rules import  all_legal_actions
 
 # infinity const for evaluation win/lose
@@ -88,9 +88,6 @@ def minimax(board, depth, player_index, max_player_index, stats, maximizing=True
     TT[key] = (value, best_action) 
     return value, best_action
 
-
-def find_worker_by_id(board, worker_id):
-    return next((w for w in board.workers if w.id == worker_id), None)
 
 class SearchStats:
     def __init__(self):

@@ -1,10 +1,7 @@
-from ai.agent import Agent
 from game.board import Board
 from game.config import GameConfig
-from game.models import create_workers_for_game
 from gui.gameplay import GameController
-from gui.window import SantoriniTk, choose_mode_ui, build_players, place_workers_for_setup
-
+from gui.window import SantoriniTk, choose_mode_ui, build_players
 
 def main():
     while True:
