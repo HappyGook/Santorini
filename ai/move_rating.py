@@ -34,15 +34,15 @@ def normalize_rating(value:float, worst: float, best:float)-> float:
 
 def label_for_rating(rating:float) -> str:
 
-    if rating <= -0.75:
+    if rating <= -0.8:
         return "blunder"
-    if rating <= -0.4:
+    if rating <= -0.5:
         return "mistake"
     if rating <= -0.15:
         return "inaccuracy"
-    if rating <= 0.25:
+    if rating <= 0.2:
         return "okay"
-    if rating <= 0.75:
+    if rating <= 0.5:
         return "good"
     return "excellent"
 
@@ -77,7 +77,35 @@ def rate_move(board_before:Board,player_id: str, action_played: Action)-> Tuple[
     if played_score is None:
         played_score = worst_score
 
-    rating = normalize_rating(played_score, worst_score, best_score)
+    sorted_scores = sorted(scores)
+    n =len(sorted_scores)
+
+    if n %2 ==1:
+        median_score = sorted_scores[n//2]
+    else:
+        median_score = 0.5 * (sorted_scores[n//2 -1] + sorted_scores[n//2])  
+
+    q1_score = sorted_scores[n//4] # 25%
+    q3_score = sorted_scores[(3*n)//4] #75% 
+
+    NEAR_BEST_EPS = 1e-6 #almost best still excellent
+
+    if played_score >= best_score - NEAR_BEST_EPS:
+        rating = 1.0
+    elif played_score >= q3_score:
+        rating = 0.5
+    elif played_score >= q1_score:
+        rating = 0.0
+    elif played_score > worst_score:
+        
+        mid_low = 0.5 * (worst_score + q1_score)
+        if played_score >= mid_low:
+            rating = -0.2
+        else:
+            rating = -0.5
+    else:
+        rating = -0.9
+
     label = label_for_rating(rating)
 
     best_actions = [action for (action, score) in action_scores if score == best_score]
