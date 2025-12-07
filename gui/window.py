@@ -546,6 +546,7 @@ class SantoriniTk(tk.Tk):
         # Start the setup phase immediately
         self.after(50, self.setup_workers)
 
+        self.pending_board_before_move = None  # type: Board | None
         self.ai_lock = threading.Lock()
         self._stop_event = threading.Event()
         self._ai_threads = []
@@ -1273,6 +1274,39 @@ class SantoriniTk(tk.Tk):
         if hasattr(self, "dialogue_label"):
             self.dialogue_label.config(text=phrase or "")
 
+        #ai move rating
+
+        ai_move_rating = None
+        ai_move_label = None
+
+        try:
+            board_before = self.board.clone()
+            old_pos = worker.pos
+
+            # find worker on old board
+            worker_before = None
+            for w in board_before.workers:
+                if w.owner == player and w.pos == old_pos:
+                    worker_before = w
+                    break  
+
+            if worker_before is not None:
+                action_played = (worker_before, move, build)
+                ai_move_rating, ai_move_label, details = rate_move(
+                    board_before,
+                    player,
+                    action_played
+                )
+            else:
+                print("[RATING] Could not find matching worker on previous board for AI move rating")    
+                
+        except Exception as e:
+            print(f"[RATING-AI] Failed to compute rating: {e}")
+            ai_move_rating = None
+            ai_move_label = None
+
+
+
         old_pos = worker.pos
         ok_move, won = self.controller.apply_move(worker, move)
         if not ok_move:
@@ -1286,7 +1320,10 @@ class SantoriniTk(tk.Tk):
             self.game_over = True
             return
 
-        self.record_move(player, worker, move, build, my_score)
+        if ai_move_rating is not None:
+            self.record_move(player, worker, move, build, score=ai_move_rating)
+        else:
+            self.record_move(player, worker, move, build, score=my_score)
 
         # Record turn in notation
         if won:
@@ -1301,7 +1338,12 @@ class SantoriniTk(tk.Tk):
         print(f"[DEBUG] AI {worker.owner} built at {build}, about to end turn")
         self.controller.end_turn()
         self.ai_lock.release()
-        self.draw()
+        
+        msg = None
+        if ai_move_rating is not None and ai_move_label is not None:
+            move_text = f"{coords_to_notation(old_pos)}-{coords_to_notation(move)}/{coords_to_notation(build)}"
+            msg = f"{worker.owner} (AI) played {move_text}: {ai_move_label} ({ai_move_rating:+.2f})"
+        self.draw(msg)
 
         if won:
             self.end_game(worker.owner)
