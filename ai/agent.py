@@ -6,10 +6,11 @@ from sympy.categories import Object
 import ai.minimax as mm
 import ai.maxn as mx
 import ai.mcts as mc
+from ai.move_rating import move_ranking
 from game.board import BOARD_SIZE
 from ai.phrases import PHRASES_BY_PLAYER
 from ai.mcts import SearchStats
-from ai.heuristics import find_win_in_one
+from ai.heuristics import find_win_in_one, detailed_eval
 import rust
 
 
@@ -163,6 +164,25 @@ class Agent:
         print(
             f"[{self.player_id}][{self.algo}] nodes={stats.nodes} tt_hits={stats.tt_hits}"
         )
+
+        if action is not None:
+            try:
+                # Get detailed evaluation of the chosen action
+                score_breakdown = detailed_eval(board_state, self.player_id, action)
+
+                # Generate human-friendly log message
+                if self.algo == "ml":
+                    log_message = move_ranking(float(eval_value), {}, "ml")
+                else:
+                    # For heuristic algorithms, use the score breakdown
+                    total_score = sum(score_breakdown.values()) if isinstance(score_breakdown, dict) else float(
+                        eval_value)
+                    log_message = move_ranking(total_score, score_breakdown, self.algo)
+
+                print(f"[{self.player_id}] {log_message}")
+
+            except Exception as e:
+                print(f"[{self.player_id}] Move evaluation failed: {e}")
 
         # ALWAYS return a (value, action) tuple
         return eval_value, action

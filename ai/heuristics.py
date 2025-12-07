@@ -6,6 +6,7 @@ For now I have made 3 factors:
     3. Proximity to level 3
     4. Tactical win in one(me) /or lose (op)
 """
+from typing import Dict, Any
 
 from game.board import BOARD_SIZE
 from game.rules import legal_moves, is_win_after_move, legal_builds
@@ -31,6 +32,24 @@ def local_tower_control(board_state, workers):
                     if h >= 1:   # count since level 1
                         score += h
     return score
+
+
+def mob_score(workers, board_state=None):
+    s = 0.0
+    for w in workers:
+        current_h = board_state.get_cell(w.pos).height
+        moves = legal_moves(board_state, w.pos)
+        up = flat = down = 0
+        for distance in moves:
+            dst_h = board_state.get_cell(distance).height
+            if dst_h > current_h:
+                up += 1
+            elif dst_h == current_h:
+                flat += 1
+            else:
+                down += 1
+        s += 2.0 * up + 1.0 * flat + 0.5 * down
+    return s
 
 def distance_to_nearest_level3(board_state, pos):
     #Chebyshev distance
@@ -69,23 +88,8 @@ def evaluate(board_state, player_id):
     opponent_height = sum(board_state.get_cell(w.pos).height for w in opponent_workers)
     height_advantage = my_height - opponent_height
 
-    # --- mobility weighted from up/flat/down
-    def mob_score(workers):
-        s = 0.0
-        for w in workers:
-            current_h = board_state.get_cell(w.pos).height
-            moves = legal_moves(board_state, w.pos)
-            up = flat = down = 0
-            for distance in moves:
-                dst_h = board_state.get_cell(distance).height
-                if dst_h > current_h:   up += 1
-                elif dst_h == current_h: flat += 1
-                else:            down += 1
-            s += 2.0 * up + 1.0 * flat + 0.5 * down
-        return s
-
-    my_mobility = mob_score(my_workers)
-    opponent_mobility = mob_score(opponent_workers)
+    my_mobility = mob_score(my_workers, board_state)
+    opponent_mobility = mob_score(opponent_workers, board_state)
     mobility = my_mobility - opponent_mobility
 
     # Proximity: for each worker distance to nearest level-3 cell (reward being closer)
@@ -318,22 +322,7 @@ def evaluate_action(board, player_id, action):
     opp_height = sum(new_board.get_cell(w.pos).height for w in opponent_workers) /2.0
     height_adv = my_height - opp_height
 
-    # --- mobility ---
-    def mobility_score(workers):
-        mob_score = 0.0
-        for w in workers:
-            curr_h = new_board.get_cell(w.pos).height
-            for dst in legal_moves(new_board, w.pos):
-                dst_h = new_board.get_cell(dst).height
-                if dst_h > curr_h:
-                    mob_score += 2.0
-                elif dst_h == curr_h:
-                    mob_score += 1.0
-                else:
-                    mob_score += 0.5
-        return mob_score
-
-    mobility = mobility_score(my_workers) - (mobility_score(opponent_workers) /2.0)
+    mobility = mob_score(my_workers, new_board) - (mob_score(opponent_workers, new_board) /2.0)
 
     # --- proximity to level 3 ---
     def proximity_score(w_list):
@@ -348,3 +337,72 @@ def evaluate_action(board, player_id, action):
     # Weighted sum
     score = 15 * height_adv + 9 * mobility + 18 * proximity
     return score
+
+def detailed_eval(board_state, player_id, action)->Dict[str, Any]:
+    worker, move, build = action
+
+    new_board, won = simulate_action(board_state, worker, move, build)
+
+    if new_board is None:
+        return {"illegal_move": True, "total_score": -99.0}
+
+    if won:
+        return {"immediate_win": True, "total_score": 100.0}
+
+    my_workers = [w for w in new_board.workers if w.owner == player_id]
+    opponent_workers = [w for w in new_board.workers if w.owner != player_id]
+
+    categories={}
+
+    categories["blocks_opponent_win"] = False
+    for opp_w in opponent_workers:
+        for opp_move in legal_moves(board_state, opp_w.pos):
+            if board_state.get_cell(opp_move).height == 3:
+                if opp_move == build:
+                    categories["blocks_opponent_win"] = True
+                    break
+
+    categories["opponent_can_win"] = False
+    for opp_w in opponent_workers:
+        for opp_move in legal_moves(new_board, opp_w.pos):
+            if new_board.get_cell(opp_move).height == 3:
+                categories["opponent_can_win"] = True
+                break
+
+    my_height = sum(new_board.get_cell(w.pos).height for w in my_workers)
+    opponent_height = sum(new_board.get_cell(w.pos).height for w in opponent_workers)
+    categories["height_advantage"] = (my_height - opponent_height) * 8
+
+    my_mobility = mob_score(my_workers, new_board)
+    opponent_mobility = mob_score(opponent_workers, new_board)
+    categories["mobility"] = (my_mobility - opponent_mobility) * 2
+
+    # Proximity to level 3
+    my_proximity_score = 0.0
+    for w in my_workers:
+        dist = distance_to_nearest_level3(new_board, w.pos)
+        if dist == 0:
+            my_proximity_score += 10.0
+        else:
+            my_proximity_score += 1.0 / (dist + 0.5)
+
+    opponent_proximity_score = 0.0
+    for w in opponent_workers:
+        dist = distance_to_nearest_level3(new_board, w.pos)
+        if dist == 0:
+            opponent_proximity_score += 10.0
+        else:
+            opponent_proximity_score += 1.0 / (dist + 0.5)
+
+    categories["proximity"] = (my_proximity_score - opponent_proximity_score) * 6
+
+    # Tower control
+    my_tower_control = local_tower_control(new_board, my_workers)
+    opp_tower_control = local_tower_control(new_board, opponent_workers)
+    categories["tower_control"] = (my_tower_control - opp_tower_control) * 2
+
+    # Calculate total score
+    categories["total_score"] = sum(
+        v for k, v in categories.items() if isinstance(v, (int, float)) and k != "total_score")
+
+    return categories
