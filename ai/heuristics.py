@@ -494,11 +494,11 @@ def detailed_eval(board_state, player_id, action)->Dict[str, Any]:
                 break
 
     my_height = sum(new_board.get_cell(w.pos).height for w in my_workers)
-    opponent_height = sum(new_board.get_cell(w.pos).height for w in opponent_workers)
+    opponent_height = sum(new_board.get_cell(w.pos).height for w in opponent_workers) / 2
     categories["height_advantage"] = (my_height - opponent_height) * 8
 
     my_mobility = mob_score(my_workers, new_board)
-    opponent_mobility = mob_score(opponent_workers, new_board)
+    opponent_mobility = mob_score(opponent_workers, new_board) / 2
     categories["mobility"] = (my_mobility - opponent_mobility) * 2
 
     # Proximity to level 3
@@ -518,11 +518,11 @@ def detailed_eval(board_state, player_id, action)->Dict[str, Any]:
         else:
             opponent_proximity_score += 1.0 / (dist + 0.5)
 
-    categories["proximity"] = (my_proximity_score - opponent_proximity_score) * 6
+    categories["proximity"] = (my_proximity_score - (opponent_proximity_score /2)) * 6
 
     # Tower control
     my_tower_control = local_tower_control(new_board, my_workers)
-    opp_tower_control = local_tower_control(new_board, opponent_workers)
+    opp_tower_control = local_tower_control(new_board, opponent_workers) / 2
     categories["tower_control"] = (my_tower_control - opp_tower_control) * 2
 
     # Calculate total score
