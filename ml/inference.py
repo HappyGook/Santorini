@@ -1,7 +1,9 @@
 import logging
 from ml.encode import encode_board, encode_action
 from game.rules import all_legal_actions
+from ai.heuristics import find_win_in_one
 import torch
+
 logging.basicConfig(level=logging.DEBUG)
 
 def ml_inference(board_state, player_index, model, stats):
@@ -11,6 +13,11 @@ def ml_inference(board_state, player_index, model, stats):
     legal_actions = all_legal_actions(board_state, player_id)
     if not legal_actions:
         return None, None
+
+    win_action = find_win_in_one(board_state, player_id)
+    if win_action is not None:
+        print(f"[ML] Found hardcoded win action: {win_action}")
+        return 1.0, win_action
 
     board_tensor = torch.from_numpy(encode_board(board_state, active_player_id=player_id))
     actions_tensor = torch.stack([

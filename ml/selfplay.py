@@ -17,7 +17,7 @@ from statistics.stat_functions import load_existing_statistics, normalize_score,
 
 def make_agents(game_config, model, training_mode, p1_algo=None, p2_algo=None, p3_algo=None):
     if training_mode == "guided":
-        return [Agent(f"P{i+1}", algo="maxn", depth=2) for i in range(game_config.num_players)]
+        return [Agent(f"P{i+1}", algo="minimax", depth=2) for i in range(game_config.num_players)]
     elif training_mode == "statistics":
         # Use specific algorithms for each player in statistics mode
         algos = [p1_algo or "minimax", p2_algo or "maxn", p3_algo or "mcts"]
