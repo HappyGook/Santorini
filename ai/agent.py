@@ -93,7 +93,6 @@ class Agent:
         elif self.algo == "mcts":
             print(f"[{self.player_id}] using Python MCTS ...")
             iterations = int(self.iters) if self.iters is not None else max(1000, self.depth * 400)
-            print(f"[{self.player_id}] MCTS iterations: {iterations}")
 
             vector, action = mc.mcts_search(
                 board_state,

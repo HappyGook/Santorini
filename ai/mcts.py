@@ -1,7 +1,7 @@
 import math
 import random
 from typing import Tuple, List
-from ai.heuristics import evaluateP_mcts, find_win_in_one, opponent_can_win_in_one,distance_to_nearest_level3
+from ai.heuristics import evaluate
 from game.moves import move_worker, build_block, find_worker_by_id
 from game.rules import legal_moves, legal_builds
 
@@ -14,6 +14,7 @@ from ml.inference import ml_inference
     4 backpropagation - update values along the path to root
 
 """
+
 # the type for ai's action (worker, move, build)
 Action = Tuple[object, Tuple[int, int], Tuple[int, int]]
 
@@ -67,21 +68,12 @@ def action_prior(board, player_id, action):
     worker_id, move, build = action
     h_move = board.grid[move].height    
     h_build = board.grid[build].height
-
-    worker = find_worker_by_id(board, worker_id)
-    h_src  = board.grid[worker.pos].height
-    climb  = max(0, h_move - h_src)
-    cap    = 1.0 if h_build == 3 else 0.0
-
-    # Distance to nearest level 3 after moving
-    dist3 = distance_to_nearest_level3(board, move)
-    prox  = 0.0 if dist3 == 0 else 1.0 / (dist3 + 0.5)
-
-    # Very simple: “blocking” heuristic – if build squares are level-3 reachable squares
-    block_bonus = 0.0
-    # (optional: check opponents’ moves and see if this build kills one)
-
-    return (3 * climb+5 * cap+h_move+4 * prox+10 * block_bonus)
+    # Height difference between target and current position
+    climb = max(0, h_move - board.grid[find_worker_by_id(board, worker_id).pos].height)
+    #make dome get bonus score
+    cap = 1.0 if h_build == 3 else 0.0
+     # Weighted linear combination → heuristic "score"
+    return 3*climb +5 *cap + h_move 
 
 # Convert a list of raw scores into probabilities (sum = 1)
 def softmax(x, temp=1.0):
@@ -128,32 +120,19 @@ def expand(node, game_config, stats):
 
 # Backpropagation: update visit counts and total value along the path
 def backpropagate(node, reward, root_player):
-
     while node:
         node.visits += 1
         # perspective: positive if good for root_player
-        
-        node.value_sum += reward
+        sign = +1 if node.player_index == root_player else -1
+        node.value_sum += sign * reward
         node = node.parent
 
 #main mcts search function
 def mcts_search(board, player_index, game_config, stats, iterations=500, ml_model=None, use_nn=False):
-    
-    player_id = game_config.get_player_id(player_index)
-
-    # --- WIN IN ONE SHORTCUT ---
-    win_action = find_win_in_one(board, player_id)
-    if win_action is not None:
-        # Create a vector where only I get +1
-        num_players = len(game_config.player_ids)
-        value_vec = [0.0] * num_players
-        value_vec[player_index] = 1.0
-        return value_vec, win_action
-   
     """
        MCTS search that returns the same format as maxn: (vector, action)
     """
-    root = get_node(board, player_index)
+    root = MCTSNode(board, player_index)
     ROOT = player_index
     for i in range(iterations):
 
@@ -165,7 +144,7 @@ def mcts_search(board, player_index, game_config, stats, iterations=500, ml_mode
 
         reward = simulate(
         child.board,
-        ROOT,
+        child.player_index,
         game_config,
         stats,
         ml_model if use_nn else None
@@ -203,16 +182,6 @@ def simulate(board, player_index, game_config, stats, ml_model=None, steps=12, e
 
     for _ in range(steps):
         player_id = game_config.get_player_id(current_index)
-
-        win_action = find_win_in_one(temp_board, player_id)
-        if win_action is not None:
-            # current player can win immediately
-            return 1.0 if current_index == player_index else -1.0
-
-        if opponent_can_win_in_one(temp_board, player_id):
-            
-            return -1.0 if current_index == player_index else 1.0
-
         actions = generate_actions(temp_board, player_id)
         if not actions:
             break
@@ -239,7 +208,7 @@ def simulate(board, player_index, game_config, stats, ml_model=None, steps=12, e
         return value
     # fallback heuristic
     root_pid = game_config.get_player_id(player_index)
-    v = evaluateP_mcts(temp_board, root_pid)
+    v = evaluate(temp_board, root_pid)
     return max(-0.5, min(0.5, v / 100.0))
 
 

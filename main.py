@@ -3,13 +3,6 @@ from game.config import GameConfig
 from gui.gameplay import GameController
 from gui.window import SantoriniTk, choose_mode_ui, build_players
 
-import os
-import logging
-
-os.environ["PILLOW_DEBUG"] = "0"
-logging.getLogger("PIL").setLevel(logging.ERROR)
-logging.getLogger("PIL.PngImagePlugin").setLevel(logging.ERROR)
-
 def main():
     while True:
         mode_selection = choose_mode_ui()

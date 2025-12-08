@@ -244,126 +244,6 @@ def evaluate_mcts(board_state, player_id):
     return v
 
 
-#evaluate for Python MCTS
-def evaluateP_mcts(board_state, player_id):
-    
-    game_config = board_state.game_config
-
- 
-    if isinstance(player_id, int):
-        root_player_id = game_config.get_player_id(player_id)
-    else:
-        root_player_id = player_id
-
-    # --- 1. Tactical win/loss check ---
-    my_workers = [w for w in board_state.workers if w.owner == root_player_id]
-    opponent_workers = [w for w in board_state.workers if w.owner != root_player_id]
-
-    # Win in one move?
-    for w in my_workers:
-        if w.pos is None:
-            continue
-        src = w.pos
-        for move in legal_moves(board_state, src):
-            if is_win_after_move(board_state, src, move):
-                return 0.9  # almost certain win
-
-    # If any opponent can win in one from this state, mark as very bad
-    if opponent_can_win_in_one(board_state, root_player_id):
-        return -0.9  # almost certain loss
-
-    # --- 2. Positional heuristic ---
-
-    # Height advantage
-    height_adv = sum(
-        board_state.get_cell(w.pos).height for w in my_workers
-    ) - sum(
-        board_state.get_cell(w.pos).height for w in opponent_workers
-    )
-
-    # Mobility
-    my_mobility = 0.0
-    for w in my_workers:
-        for move in legal_moves(board_state, w.pos):
-            h_src = board_state.get_cell(w.pos).height
-            h_dst = board_state.get_cell(move).height
-            diff = h_dst - h_src
-            if diff == 1:
-                my_mobility += 2.0
-            elif diff == 0:
-                my_mobility += 1.0
-            elif diff < 0:
-                my_mobility += 0.5
-
-    opp_mobility = 0.0
-    for w in opponent_workers:
-        for move in legal_moves(board_state, w.pos):
-            h_src = board_state.get_cell(w.pos).height
-            h_dst = board_state.get_cell(move).height
-            diff = h_dst - h_src
-            if diff == 1:
-                opp_mobility += 2.0
-            elif diff == 0:
-                opp_mobility += 1.0
-            elif diff < 0:
-                opp_mobility += 0.5
-
-    mobility = my_mobility - opp_mobility
-
-    # Distance to nearest level 3 (Chebyshev)
-    level3 = [
-        (x, y)
-        for x in range(BOARD_SIZE)
-        for y in range(BOARD_SIZE)
-        if board_state.get_cell((x, y)).height == 3
-    ]
-
-    my_dist = 0.0
-    for w in my_workers:
-        x0, y0 = w.pos
-        if level3:
-            dist = min(max(abs(x - x0), abs(y - y0)) for (x, y) in level3)
-        else:
-            dist = BOARD_SIZE
-        my_dist += (BOARD_SIZE - dist)  # closer is better
-
-    opp_dist = 0.0
-    for w in opponent_workers:
-        x0, y0 = w.pos
-        if level3:
-            dist = min(max(abs(x - x0), abs(y - y0)) for (x, y) in level3)
-        else:
-            dist = BOARD_SIZE
-        opp_dist += (BOARD_SIZE - dist)
-
-    dist_sum = my_dist - opp_dist
-
-    # Local tower control
-    my_tower_ctrl = local_tower_control(board_state, my_workers)
-    opp_tower_ctrl = local_tower_control(board_state, opponent_workers)
-    tower_ctrl = my_tower_ctrl - opp_tower_ctrl
-
-
-    my_threats  = count_win_threats(board_state, my_workers)
-    opp_threats = count_win_threats(board_state, opponent_workers)
-    threat_score = my_threats - opp_threats
-
-    my_trapped  = count_trapped(board_state, my_workers)
-    opp_trapped = count_trapped(board_state, opponent_workers)
-    trapped_score = opp_trapped - my_trapped  # more trapped enemies is good
-
-    # --- 3. Weighted combination ---
-    raw = 8 * height_adv + 3 * mobility + 6 * dist_sum + 4 * tower_ctrl + 10 * threat_score + 6 * trapped_score
-
-    # Normalize to [-0.5, 0.5]
-    v = raw / 100.0
-    if v > 0.5:
-        v = 0.5
-    if v < -0.5:
-        v = -0.5
-    return v
-
-
 def find_win_in_one(board, player_id):
 
     #Returns (worker, move_pos, build_pos) if player_id can win in one move,
@@ -374,18 +254,14 @@ def find_win_in_one(board, player_id):
     for w in workers:
         if w.pos is None:
             continue
-        
         src = w.pos
         for move in legal_moves(board, src):
-    
+            # Win condition is purely about the move, not the build
             if is_win_after_move(board, src, move):
-
+                # After a winning move, any legal build is fine; pick first
                 builds = legal_builds(board, move)
-                if not builds:
-                    # No legal build = no valid (move, build) action in our encoding
-                    continue
-                build_pos = builds[0]
-                return (w, move, build_pos)
+                build_pos = builds[0] if builds else move
+                return w, move, build_pos
 
     return None
 
@@ -530,27 +406,3 @@ def detailed_eval(board_state, player_id, action)->Dict[str, Any]:
         v for k, v in categories.items() if isinstance(v, (int, float)) and k != "total_score")
 
     return categories
-
-
-def count_win_threats(board_state, workers):
-    c = 0
-    for w in workers:
-        if w.pos is None:
-            continue
-        h_src = board_state.get_cell(w.pos).height
-        if h_src != 2:
-            continue
-        for dst in legal_moves(board_state, w.pos):
-            if board_state.get_cell(dst).height == 3:
-                c += 1
-                break
-    return c
-
-def count_trapped(board_state, workers):
-    c = 0
-    for w in workers:
-        if w.pos is None:
-            continue
-        if not legal_moves(board_state, w.pos):
-            c += 1
-    return c

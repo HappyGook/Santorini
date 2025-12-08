@@ -1255,7 +1255,6 @@ class SantoriniTk(tk.Tk):
         if action is None:
             # no legal action — treat as stalemate
             self.controller.end_turn()
-            self.ai_lock.release()
             self.draw(f"{player}: no legal moves, skipping")
             if self.controller.is_ai_turn() and not self.game_over:
                 self.after(50, self.ai_pump)
