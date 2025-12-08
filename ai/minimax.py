@@ -1,12 +1,25 @@
 from ai.heuristics import evaluate, order_moves
 from game.moves import move_worker, build_block, find_worker_by_id
 from game.rules import  all_legal_actions
+from ml.inference import score_given_actions
 
 # infinity const for evaluation win/lose
 INF = 10 ** 9
 
 TT ={}
-def minimax(board, depth, player_index, max_player_index, stats, maximizing=True):
+
+def ml_order_moves(board, actions, player_index, ml_model, stats):
+    if not ml_model or not actions:
+        return actions
+
+    player_id = board.game_config.get_player_id(player_index)
+
+    scored = score_given_actions(board, player_id, actions, ml_model, stats)
+    scored_sorted = sorted(scored, key=lambda x: x[1], reverse=True)
+
+    return [action for action, score in scored_sorted]
+
+def minimax(board, depth, player_index, max_player_index, stats, ml_model=None, maximizing=True):
     stats.bump()
     key = (hash(board), depth, player_index, maximizing)
     if key in TT:
@@ -22,11 +35,14 @@ def minimax(board, depth, player_index, max_player_index, stats, maximizing=True
     """
     player_id = board.game_config.get_player_id(player_index)
     actions = all_legal_actions(board, player_id)
-    actions = order_moves(board, actions)
+    if ml_model is not None and actions:
+        actions = ml_order_moves(board, actions, player_index, ml_model, stats)
+    else:
+        actions = order_moves(board, actions)
 
     if depth == 0 or not actions:
         max_player_id = board.game_config.get_player_id(max_player_index)
-        score = evaluate(board, max_player_id) 
+        score = evaluate(board, max_player_id)
         TT[key] = (score, None)
         return score, None
 

@@ -67,6 +67,19 @@ class Agent:
             )
             eval_value = score
 
+        elif self.algo == "minimax_NN":
+
+            score, action = mm.minimax(
+                board_state,
+                depth=self.depth,
+                player_index=player_index,
+                max_player_index=player_index,  # maximize
+                stats=stats,
+                ml_model=self.model,
+                maximizing=True
+            )
+            eval_value = score
+
         elif self.algo == "maxn":
             vector, action = mx.maxn(
                 board_state,

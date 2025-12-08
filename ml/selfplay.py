@@ -24,7 +24,7 @@ def make_agents(game_config, model, training_mode, p1_algo=None, p2_algo=None, p
         agents = []
         for i in range(game_config.num_players):
             algo = algos[i] if i < len(algos) else algos[0]
-            if algo == "ml" or algo == "maxn_NN":
+            if algo == "ml" or algo == "maxn_NN" or algo == "minimax_NN":
                 agents.append(Agent(f"P{i+1}", algo=algo, model=model, depth=2))
             elif algo in ["mcts", "mcts_NN"]:
                 agents.append(Agent(f"P{i+1}", algo=algo, iters=1000, depth=3))
