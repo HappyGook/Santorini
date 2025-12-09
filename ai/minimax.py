@@ -1,12 +1,12 @@
 from ai.heuristics import evaluate, order_moves
 from game.moves import move_worker, build_block, find_worker_by_id
-from game.rules import  all_legal_actions
+from game.rules import all_legal_actions
 from ml.inference import score_given_actions
 
 # infinity const for evaluation win/lose
 INF = 10 ** 9
 
-TT ={}
+TT = {}
 
 def ml_order_moves(board, actions, player_index, ml_model, stats):
     if not ml_model or not actions:
@@ -65,7 +65,6 @@ def minimax(board, depth, player_index, max_player_index, stats, ml_model=None, 
             leaf_score = INF if maximizing else -INF
             TT[key] = (leaf_score, action)  # cache winning child
             return leaf_score, action
-           
 
         build_block(new_board, new_worker, build)
 
@@ -75,23 +74,19 @@ def minimax(board, depth, player_index, max_player_index, stats, ml_model=None, 
         # For 3 players, we need to determine if next player is maximizing
         next_maximizing = (next_player_index == max_player_index)
 
-        # recursively evaluate
         score, _ = minimax(new_board, depth - 1, next_player_index, max_player_index, stats,
-                            next_maximizing)
+                           ml_model, next_maximizing)
 
         # update best action based on maximizing/minimizing
         if maximizing:
             if score > value:
                 value = score
                 best_action = action
-            
+
         else:
             if score < value:
                 value = score
                 best_action = action
-            
-
-      
 
     if best_action is None and actions:
         print(f"[WARN] No valid actions selected at depth {depth} for {player_id}, "
@@ -101,7 +96,7 @@ def minimax(board, depth, player_index, max_player_index, stats, ml_model=None, 
         print("New board:\n")
         new_board.print_board()
         best_action = actions[0]
-    TT[key] = (value, best_action) 
+    TT[key] = (value, best_action)
     return value, best_action
 
 
