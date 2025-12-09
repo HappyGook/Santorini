@@ -69,8 +69,7 @@ def choose_mode_ui() -> Dict[str, Any]:
     root.geometry("1200x1000")
     root.resizable(True, True)
 
-
-    #azure
+    # azure
     here = Path(__file__).resolve().parent
     azure_dir = here / "themes" / "Azure-ttk-theme-main"
     azure_tcl = azure_dir / "azure.tcl"
@@ -78,7 +77,6 @@ def choose_mode_ui() -> Dict[str, Any]:
     root.tk.call("set_theme", "dark")   # or "light"
 
     style = ttk.Style(root)
-    
 
     # Global background override for ttk frames, labels, etc.
     style.configure(".", background="#1e1e2e")
@@ -91,43 +89,34 @@ def choose_mode_ui() -> Dict[str, Any]:
     style.configure("Toggle.TButton", background="#1e1e2e")
     style.map("Toggle.TButton", background=[("selected", "#1f6feb")])
 
-    
-
-    style = ttk.Style(root)
     style.configure(
         "StartGame.TButton",
         font=("Segoe UI", 20, "bold"),
-        padding=(24, 10)),
-        
-    
-
+        padding=(24, 10),
+    )
 
     players_var = tk.StringVar(value="2")
     mode_var = tk.StringVar(value="pvai")
 
-
     container = ttk.Frame(root)
     container.pack(anchor="n", pady=20, fill="x")
 
+    # Title
+    ttk.Label(
+        container,
+        text="SANTORINO",
+        font=("Segoe UI", 35, "bold"),
+    ).pack(pady=(30, 40))
 
     # Number of players selection
     ttk.Label(
         container,
-        text="SANTORINO",
-        font=("Segoe UI", 35, "bold")
-    ).pack(pady=(30, 40))
-
-    ttk.Label(
-        container,
         text="Number of Players:",
-        font=("Segoe UI", 20, "bold")
+        font=("Segoe UI", 20, "bold"),
     ).pack(anchor="center")
 
-    
-    players_var = tk.StringVar(value="2")
     player_frame = ttk.Frame(container)
     player_frame.pack(anchor="center", pady=(10, 25))
-
 
     ttk.Radiobutton(
         player_frame,
@@ -136,7 +125,7 @@ def choose_mode_ui() -> Dict[str, Any]:
         value="2",
         style="Toggle.TButton",
         padding=10,
-        width=12 
+        width=12,
     ).pack(side="left", padx=10)
 
     ttk.Radiobutton(
@@ -146,20 +135,16 @@ def choose_mode_ui() -> Dict[str, Any]:
         value="3",
         style="Toggle.TButton",
         padding=10,
-        width=12 
+        width=12,
     ).pack(side="left", padx=10)
 
-
-    # Game mode selection
-   
+    # Game mode selection (used as a shortcut to set defaults)
     ttk.Label(
         container,
         text="Game Mode:",
-        font=("Segoe UI", 12, "bold")
+        font=("Segoe UI", 12, "bold"),
     ).pack(anchor="center")
 
-    
-    mode_var = tk.StringVar(value="pvai")
     mode_frame = ttk.Frame(container)
     mode_frame.pack(anchor="center", pady=(10, 25))
 
@@ -170,7 +155,7 @@ def choose_mode_ui() -> Dict[str, Any]:
         value="pvp",
         style="Toggle.TButton",
         padding=10,
-        width=18
+        width=18,
     ).pack(side="left", padx=8)
 
     ttk.Radiobutton(
@@ -180,7 +165,7 @@ def choose_mode_ui() -> Dict[str, Any]:
         value="pvai",
         style="Toggle.TButton",
         padding=10,
-        width=18
+        width=18,
     ).pack(side="left", padx=8)
 
     ttk.Radiobutton(
@@ -190,137 +175,233 @@ def choose_mode_ui() -> Dict[str, Any]:
         value="aivai",
         style="Toggle.TButton",
         padding=10,
-        width=18
+        width=18,
     ).pack(side="left", padx=8)
 
     ttk.Label(
         container,
-        text="AI Configuration",
-        font=("Segoe UI", 12, "bold")
+        text="Player & AI Configuration",
+        font=("Segoe UI", 12, "bold"),
     ).pack(anchor="center", pady=(20, 5))
-        
+
     ai_box = ttk.Frame(container)
     ai_box.pack(anchor="center", pady=(10, 10))
 
-    
+    # --- per-player controller (Human / AI) ---
+    ctrl_vars: Dict[str, tk.StringVar] = {
+        "P1": tk.StringVar(value="Human"),
+        "P2": tk.StringVar(value="AI"),
+        "P3": tk.StringVar(value="AI"),
+    }
+
     def make_ai_vars():
         return {
             "algo": tk.StringVar(value="minimax"),
             "depth": tk.IntVar(value=3),
-            "iters": tk.IntVar(value=400),     # used only for MCTS
+            "iters": tk.IntVar(value=400),  # used only for MCTS-like
         }
+
     ai_vars: Dict[str, Dict[str, tk.Variable]] = {
         "P1": make_ai_vars(),
         "P2": make_ai_vars(),
         "P3": make_ai_vars(),
     }
+    last_ai_algo: Dict[str, str] = {
+        "P1": ai_vars["P1"]["algo"].get(),
+        "P2": ai_vars["P2"]["algo"].get(),
+        "P3": ai_vars["P3"]["algo"].get(),
+    }
 
-     # build a row factory
+    # build a row factory
     rows: Dict[str, Dict[str, Any]] = {}
+
     def add_ai_row(pid: str, row_index: int):
         r: Dict[str, Any] = {}
         frame = ttk.Frame(ai_box)
         frame.grid(row=row_index, column=0, pady=4)
         r["frame"] = frame
 
-        #column 1 P1 P2 P3
-
+        # Column 0: P1/P2/P3 label
         ttk.Label(frame, text=pid, width=4, anchor="center").grid(row=0, column=0, padx=10)
 
+        # Column 1: Controller (Human / AI)
+        r["ctrl"] = ttk.Combobox(
+            frame,
+            width=8,
+            state="readonly",
+            values=["Human", "AI"],
+            textvariable=ctrl_vars[pid],
+        )
+        r["ctrl"].grid(row=0, column=1, padx=5)
+
         # Column 2: Algo label
-        ttk.Label(frame, text="Algo", width=8, anchor="e").grid(row=0, column=1, padx=5)
+        ttk.Label(frame, text="Algo", width=8, anchor="e").grid(row=0, column=2, padx=5)
 
         # Column 3: Algo combobox
         r["algo"] = ttk.Combobox(
-            frame, width=12, state="readonly",
+            frame,
+            width=12,
+            state="readonly",
             values=["minimax", "maxn", "ml", "mcts", "rust_mcts", "mcts_NN"],
-            textvariable=ai_vars[pid]["algo"]
+            textvariable=ai_vars[pid]["algo"],
         )
-        r["algo"].grid(row=0, column=2, padx=5)
+        r["algo"].grid(row=0, column=3, padx=5)
 
         # Column 4: Depth label
-        ttk.Label(frame, text="Depth", width=6, anchor="e").grid(row=0, column=3, padx=5)
+        ttk.Label(frame, text="Depth", width=6, anchor="e").grid(row=0, column=4, padx=5)
 
         # Column 5: Depth spinbox
-        r["depth"] = ttk.Spinbox(frame, from_=1, to=8, width=5, textvariable=ai_vars[pid]["depth"])
-        r["depth"].grid(row=0, column=4, padx=5)
+        r["depth"] = ttk.Spinbox(
+            frame,
+            from_=1,
+            to=8,
+            width=5,
+            textvariable=ai_vars[pid]["depth"],
+        )
+        r["depth"].grid(row=0, column=5, padx=5)
 
         # Column 6: Iters label
-        ttk.Label(frame, text="Iters (MCTS)", width=12, anchor="e").grid(row=0, column=5, padx=5)
+        ttk.Label(frame, text="Iters (MCTS)", width=12, anchor="e").grid(row=0, column=6, padx=5)
 
         # Column 7: Iters spinbox
-        r["iters"] = ttk.Spinbox(frame, from_=50, to=2000, increment=50, width=7, textvariable=ai_vars[pid]["iters"])
-        r["iters"].grid(row=0, column=6, padx=5)
+        r["iters"] = ttk.Spinbox(
+            frame,
+            from_=50,
+            to=2000,
+            increment=50,
+            width=7,
+            textvariable=ai_vars[pid]["iters"],
+        )
+        r["iters"].grid(row=0, column=7, padx=5)
 
         rows[pid] = r
 
     add_ai_row("P1", 0)
     add_ai_row("P2", 1)
     add_ai_row("P3", 2)
-    
-    def refresh_ai_rows(*_):
+
+    # helper: apply defaults from Game Mode to ctrl_vars
+    def apply_mode_defaults():
         mode = mode_var.get()
         n = int(players_var.get())
-
-          # who is AI by mode
         if mode == "pvp":
-            ai_players = set()
+            defaults = {"P1": "Human", "P2": "Human", "P3": "Human"}
         elif mode == "pvai":
-            ai_players = {"P2"} if n == 2 else {"P2", "P3"}
+            defaults = {"P1": "Human", "P2": "AI", "P3": "AI"}
         else:  # aivai
-            ai_players = {"P1", "P2"} if n == 2 else {"P1", "P2", "P3"}
+            defaults = {"P1": "AI", "P2": "AI", "P3": "AI"}
 
-        # show rows up to n players; enable only AI players
+        for i, pid in enumerate(["P1", "P2", "P3"]):
+            if i < n:
+                ctrl_vars[pid].set(defaults[pid])
+            # for inactive players (e.g. P3 when n=2) we don't care
+
+    def refresh_ai_rows(*_):
+        n = int(players_var.get())
+
+        allowed_algos = ("minimax", "maxn", "ml", "mcts", "rust_mcts", "mcts_NN")
+
         for i, pid in enumerate(["P1", "P2", "P3"]):
             frame = rows[pid]["frame"]
-            if i < n:
-                frame.grid()
-                is_ai = pid in ai_players
-                rows[pid]["algo"].config(state="readonly" if is_ai else "disabled")
-                rows[pid]["depth"].config(state="normal" if is_ai else "disabled")
-                # toggle iters from algo
+            frame.grid()  # always visible
+
+            active = i < n
+            ctrl = ctrl_vars[pid].get()
+            is_ai = (ctrl == "AI") and active
+            is_human = (ctrl == "Human") and active
+
+            # controller combobox enabled only for active players
+            rows[pid]["ctrl"].config(state="readonly" if active else "disabled")
+
+            if is_human:
+                # Human → show Brain, disable AI settings
+                rows[pid]["algo"].set("Brain")
+                rows[pid]["algo"].config(state="disabled")
+                rows[pid]["depth"].config(state="disabled")
+                rows[pid]["iters"].config(state="disabled")
+
+            elif is_ai:
+                # AI → force a valid algo (no Brain)
+                cur = ai_vars[pid]["algo"].get()
+                if cur not in allowed_algos:
+                    ai_vars[pid]["algo"].set("minimax")
+
+                rows[pid]["algo"].config(state="readonly")
+                rows[pid]["depth"].config(state="normal")
+
                 algo = ai_vars[pid]["algo"].get()
                 rows[pid]["iters"].config(
-                    state="normal" if (is_ai and algo in ("mcts", "rust_mcts","mcts_NN")) else "disabled")
-            else:
-                frame.grid_remove()
+                    state="normal" if algo in ("mcts", "rust_mcts", "mcts_NN") else "disabled"
+                )
 
-    # bind changes
-    players_var.trace_add("write", refresh_ai_rows)
-    mode_var.trace_add("write", refresh_ai_rows)
+            else:
+            # inactive player: grey everything out
+                rows[pid]["algo"].config(state="disabled")
+                rows[pid]["depth"].config(state="disabled")
+                rows[pid]["iters"].config(state="disabled")
+
+
+
+    # traces and bindings
+    def on_players_change(*_):
+        apply_mode_defaults()
+        refresh_ai_rows()
+
+    def on_mode_change(*_):
+        apply_mode_defaults()
+        refresh_ai_rows()
+
+    players_var.trace_add("write", on_players_change)
+    mode_var.trace_add("write", on_mode_change)
+
     for pid in ["P1", "P2", "P3"]:
         rows[pid]["algo"].bind("<<ComboboxSelected>>", lambda _e, p=pid: refresh_ai_rows())
+        rows[pid]["ctrl"].bind("<<ComboboxSelected>>", lambda _e, p=pid: refresh_ai_rows())
 
+    # initial sync
+    apply_mode_defaults()
     refresh_ai_rows()
 
-    selected = {"val": None}
+    selected: Dict[str, Any] = {"val": None}
 
     def start():
         num_players = int(players_var.get())
-        mode = mode_var.get()
+        active_pids = ["P1", "P2"] if num_players == 2 else ["P1", "P2", "P3"]
+
+        # derive overall mode from actual Human/AI mix
+        types = [ctrl_vars[pid].get().upper() for pid in active_pids]
+        num_humans = types.count("HUMAN")
+        num_ais = types.count("AI")
+
+        if num_ais == 0:
+            mode = "pvp"
+        elif num_humans == 0:
+            mode = "aivai"
+        else:
+            mode = "pvai"
 
         # build ai dict only for AI players
         ai: Dict[str, Dict[str, Any]] = {}
+
         ml_model = None
         ml_model_loaded = False
-        if mode != "pvp":
-            if mode == "pvai":
-                ai_players = ["P2"] if num_players == 2 else ["P2", "P3"]
-            else:  # aivai
-                ai_players = ["P1", "P2"] if num_players == 2 else ["P1", "P2", "P3"]
-            for pid in ai_players:
-                algo = ai_vars[pid]["algo"].get()
-                depth = int(ai_vars[pid]["depth"].get())
-                iters = int(ai_vars[pid]["iters"].get()) if algo in("mcts", "rust_mcts")  else None
-                if algo == "ml" or algo == "mcts_NN":
-                    # Load the ML model
-                    if not ml_model_loaded:
-                        ml_model = SantoNeuroNet()
-                        ml_model.load_checkpoint("ml/learned_models/model2.pt")
-                        ml_model_loaded = True
-                    ai[pid] = {"algo": algo, "depth": depth, "iters": iters, "model": ml_model}
-                else:
-                    ai[pid] = {"algo": algo, "depth": depth, "iters": iters}
+
+        for pid in active_pids:
+            if ctrl_vars[pid].get().upper() != "AI":
+                continue
+
+            algo = ai_vars[pid]["algo"].get()
+            depth = int(ai_vars[pid]["depth"].get())
+            iters = int(ai_vars[pid]["iters"].get()) if algo in ("mcts", "rust_mcts", "mcts_NN") else None
+
+            if algo in ("ml", "mcts_NN"):
+                if not ml_model_loaded:
+                    ml_model = SantoNeuroNet()
+                    ml_model.load_checkpoint("ml/learned_models/model2.pt")
+                    ml_model_loaded = True
+                ai[pid] = {"algo": algo, "depth": depth, "iters": iters, "model": ml_model}
+            else:
+                ai[pid] = {"algo": algo, "depth": depth, "iters": iters}
 
         selected["val"] = {"num_players": num_players, "mode": mode, "ai": ai}
         root.destroy()
@@ -329,7 +410,7 @@ def choose_mode_ui() -> Dict[str, Any]:
         container,
         text="Start Game",
         command=start,
-        style="StartGame.TButton"
+        style="StartGame.TButton",
     )
     start_btn.pack(pady=40)
 
