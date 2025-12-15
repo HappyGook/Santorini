@@ -250,36 +250,26 @@ def evaluateP_mcts(board_state, player_id):
     game_config = board_state.game_config
 
  
-    if isinstance(player_id, int):
-        root_player_id = game_config.get_player_id(player_id)
-    else:
-        root_player_id = player_id
+    root = game_config.get_player_id(player_id) if isinstance(player_id, int) else player_id
 
-    # --- 1. Tactical win/loss check ---
-    my_workers = [w for w in board_state.workers if w.owner == root_player_id]
-    opponent_workers = [w for w in board_state.workers if w.owner != root_player_id]
+    my_workers = [w for w in board_state.workers if w.owner == root and w.pos is not None]
+    opponent_workers = [w for w in board_state.workers if w.owner != root and w.pos is not None]
 
     # Win in one move?
     for w in my_workers:
-        if w.pos is None:
-            continue
         src = w.pos
-        for move in legal_moves(board_state, src):
-            if is_win_after_move(board_state, src, move):
-                return 0.9  # almost certain win
-
-    # If any opponent can win in one from this state, mark as very bad
-    if opponent_can_win_in_one(board_state, root_player_id):
-        return -0.9  # almost certain loss
-
+        for dst in legal_moves(board_state, src):
+            if is_win_after_move(board_state, src, dst):
+                return 0.9
+    if opponent_can_win_in_one(board_state, root):
+        return -0.9
+   
     # --- 2. Positional heuristic ---
 
     # Height advantage
-    height_adv = sum(
-        board_state.get_cell(w.pos).height for w in my_workers
-    ) - sum(
-        board_state.get_cell(w.pos).height for w in opponent_workers
-    )
+    height_adv = sum(board_state.get_cell(w.pos).height for w in my_workers) - \
+                 sum(board_state.get_cell(w.pos).height for w in opponent_workers)
+
 
     # Mobility
     my_mobility = 0.0

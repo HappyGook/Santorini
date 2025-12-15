@@ -240,7 +240,7 @@ def simulate(board, player_index, game_config, stats, ml_model=None, steps=12, e
     # fallback heuristic
     root_pid = game_config.get_player_id(player_index)
     v = evaluateP_mcts(temp_board, root_pid)
-    return max(-0.5, min(0.5, v / 100.0))
+    return v
 
 
 
