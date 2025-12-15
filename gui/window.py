@@ -1300,6 +1300,7 @@ class SantoriniTk(tk.Tk):
         t.start()
 
     def run_ai(self):
+        import time
         import threading
         tid = threading.get_ident()
         print(f"[AI] thread start {tid}")
@@ -1313,6 +1314,20 @@ class SantoriniTk(tk.Tk):
             except Exception:
                 pass
             return
+        
+        start = time.perf_counter()
+        try:
+            eval_value, action = agent.decide_action(self.board)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            self.after(0, lambda: self.finish_ai_turn(player, None, None, agent))
+            return
+
+        elapsed = time.perf_counter() - start
+        target_delay = 5.0
+        remaining = max(0.0, target_delay - elapsed)
+
 
         for name in ("tk", "PhotoImage", "Label", "Widget"):
             if hasattr(agent, name) or (getattr(agent, "model", None) is not None and hasattr(agent.model, name)):
@@ -1327,8 +1342,8 @@ class SantoriniTk(tk.Tk):
             self.after(0, lambda: self.finish_ai_turn(player, None, None, agent))
             return
 
-        self.after(0, lambda: self.finish_ai_turn(player, eval_value, action, agent))
-        print(f"[AI] thread done {tid}")
+        self.after(int(remaining * 1000), lambda: self.finish_ai_turn(player, eval_value, action, agent))
+        print(f"[AI] thread done {tid}, elapsed={elapsed:.2f}s, delay={remaining:.2f}s")
 
     def finish_ai_turn(self, player, eval_value, action, agent):
         self.hide_ai_loading()
