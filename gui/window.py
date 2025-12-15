@@ -1325,7 +1325,7 @@ class SantoriniTk(tk.Tk):
             return
 
         elapsed = time.perf_counter() - start
-        target_delay = 3.0
+        target_delay = 2.0
         remaining = max(0.0, target_delay - elapsed)
 
 
