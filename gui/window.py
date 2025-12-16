@@ -194,6 +194,8 @@ def choose_mode_ui() -> Dict[str, Any]:
         "P3": tk.StringVar(value="AI"),
     }
 
+    
+
     def make_ai_vars():
         return {
             "algo": tk.StringVar(value="minimax"),
@@ -233,6 +235,7 @@ def choose_mode_ui() -> Dict[str, Any]:
             textvariable=ctrl_vars[pid],
         )
         r["ctrl"].grid(row=0, column=1, padx=5)
+
 
         # Column 2: Algo label
         ttk.Label(frame, text="Algo", width=8, anchor="e").grid(row=0, column=2, padx=5)
@@ -284,16 +287,19 @@ def choose_mode_ui() -> Dict[str, Any]:
     def apply_mode_defaults():
         mode = mode_var.get()
         n = int(players_var.get())
+
         if mode == "pvp":
             defaults = {"P1": "Human", "P2": "Human", "P3": "Human"}
         elif mode == "pvai":
+            # default suggestion only (NOT enforcing “only one human”)
             defaults = {"P1": "Human", "P2": "AI", "P3": "AI"}
-        else:  # aivai
+        else:
             defaults = {"P1": "AI", "P2": "AI", "P3": "AI"}
 
         for i, pid in enumerate(["P1", "P2", "P3"]):
             if i < n:
                 ctrl_vars[pid].set(defaults[pid])
+
             # for inactive players (e.g. P3 when n=2) we don't care
 
     def refresh_ai_rows(*_):
@@ -313,32 +319,34 @@ def choose_mode_ui() -> Dict[str, Any]:
             # controller combobox enabled only for active players
             rows[pid]["ctrl"].config(state="readonly" if active else "disabled")
 
-            if is_human:
-                # Human → show Brain, disable AI settings
+            
+            if not active:
+                rows[pid]["algo"].config(state="disabled")
+                rows[pid]["depth"].config(state="disabled")
+                rows[pid]["iters"].config(state="disabled")
+                continue
+
+            is_ai = (ctrl_vars[pid].get() == "AI")
+
+            if not is_ai:
                 rows[pid]["algo"].set("Brain")
                 rows[pid]["algo"].config(state="disabled")
                 rows[pid]["depth"].config(state="disabled")
                 rows[pid]["iters"].config(state="disabled")
+                continue
 
-            elif is_ai:
-                # AI → force a valid algo (no Brain)
-                cur = ai_vars[pid]["algo"].get()
-                if cur not in allowed_algos:
-                    ai_vars[pid]["algo"].set("minimax")
+        # AI
+            cur = ai_vars[pid]["algo"].get()
+            if cur not in allowed_algos:
+                ai_vars[pid]["algo"].set("minimax")
 
-                rows[pid]["algo"].config(state="readonly")
-                rows[pid]["depth"].config(state="normal")
+            rows[pid]["algo"].config(state="readonly")
+            rows[pid]["depth"].config(state="normal")
 
-                algo = ai_vars[pid]["algo"].get()
-                rows[pid]["iters"].config(
-                    state="normal" if algo in ("mcts", "rust_mcts", "mcts_NN") else "disabled"
-                )
-
-            else:
-            # inactive player: grey everything out
-                rows[pid]["algo"].config(state="disabled")
-                rows[pid]["depth"].config(state="disabled")
-                rows[pid]["iters"].config(state="disabled")
+            algo = ai_vars[pid]["algo"].get()
+            rows[pid]["iters"].config(
+                state="normal" if algo in ("mcts", "rust_mcts", "mcts_NN") else "disabled"
+            )
 
 
 
@@ -425,21 +433,21 @@ def build_players(mode_sel, game_config):
     ai_cfg = mode_sel.get("ai", {})
 
     for pid in ids:
-        if mode == "pvp":
+        if pid not in ai_cfg:
             players[pid] = {"type": "HUMAN"}
-        elif mode == "pvai" and pid == "P1":
-            players[pid] = {"type": "HUMAN"}
+            continue
+
+        cfg = ai_cfg.get(pid, {"algo": "minimax", "depth": 3, "iters": None})
+
+        if cfg.get("model") is not None:
+            agent_cfg = {k: v for k, v in cfg.items() if k != "model"}
+            ml_model = SantoNeuroNet()
+            ml_model.load_checkpoint("ml/learned_models/model2.pt")
+            agent_cfg["model"] = ml_model
+            players[pid] = {"type": "AI", "agent": Agent(pid, **agent_cfg)}
         else:
-            cfg = ai_cfg.get(pid, {"algo": "minimax", "depth": 3, "iters": None})
-            # Create agent each time
-            if cfg.get("model") is not None:
-                agent_cfg = {k: v for k, v in cfg.items() if k != "model"}
-                ml_model = SantoNeuroNet()
-                ml_model.load_checkpoint("ml/learned_models/model2.pt")
-                agent_cfg["model"] = ml_model
-                players[pid] = {"type": "AI", "agent": Agent(pid, **agent_cfg)}
-            else:
-                players[pid] = {"type": "AI", "agent": Agent(pid, **cfg)}
+            players[pid] = {"type": "AI", "agent": Agent(pid, **cfg)}
+
     return players
 
 class SantoriniTk(tk.Tk):
